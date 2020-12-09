@@ -8,6 +8,7 @@ import cv2
 import h5py
 import sys
 import time
+import tqdm
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
@@ -52,19 +53,25 @@ def save_image(save_dir, image_name, render, person_obj,
     # mesh
     mesh = []
 
-    for obj in person_obj:
-        vertices = obj['vertices_posed']
-        faces = obj['faces']
+    # pack vertex and face
+    vertices = None
+    faces = None
+
+    if len(person_obj) == 2:
+        vertices = np.concatenate((person_obj[0]['vertices_posed'], person_obj[1]['vertices_posed']), axis=0)
+        faces = np.concatenate((person_obj[0]['faces'], person_obj[1]['faces']+6890), axis=0)
 
         vertex_colors = np.ones([vertices.shape[0], 4]) * [0.3, 0.3, 0.3, 1.0]
         tri_mesh = trimesh.Trimesh(vertices, faces,
                                    vertex_colors = vertex_colors)
-        # smooth = True: vertex shading
-        # smooth = False: face shading
-        mesh_obj = pyrender.Mesh.from_trimesh(tri_mesh, wireframe=False, smooth=True)
+    else:
+        assert 'num person != 2'
 
-        mesh.append(mesh_obj)
+    # smooth = True: vertex shading
+    # smooth = False: face shading
+    mesh_obj = pyrender.Mesh.from_trimesh(tri_mesh, wireframe=False, smooth=True)
 
+    mesh.append(mesh_obj)
 
     if show_moving_area:
         sphere_pos = np.array([[0., 0., 0.]])
@@ -90,27 +97,20 @@ def save_image(save_dir, image_name, render, person_obj,
 
             mesh.append(mesh_obj)
 
-
     # render
-    t1 = time.time()
     render_img, depth_img = render.run(mesh, show_viwer=False)
-    print('pr: ', time.time() - t1)
-
-    # mask image
-    mask_img = (render_img < 255) * 255
 
     # save
     local_dir =  image_name.split('/')
     current_save_dir = os.path.join(save_dir, local_dir[0], local_dir[1])
     os.makedirs(current_save_dir, exist_ok=True)
 
-    # render_img = cv2.cvtColor(render_img, cv2.COLOR_BGR2GRAY)
-    # render_img = (render_img == render_img[200][200]) * 255
+    # render_img_gray = cv2.cvtColor(render_img, cv2.COLOR_BGR2GRAY)
+    mask_img = (cv2.cvtColor(render_img, cv2.COLOR_BGR2GRAY) < 255) * 255
 
     cv2.imwrite(os.path.join(save_dir, local_dir[0], local_dir[1], 'render_' + local_dir[2]), render_img)
     cv2.imwrite(os.path.join(save_dir, local_dir[0], local_dir[1], 'mask_' + local_dir[2]), mask_img)
     # cv2.imwrite(os.path.join(save_dir, local_dir[0], local_dir[1], 'depth_' + local_dir[2]), depth_img)
-
 
 
 def generate_shape_pose_group(pose, shape, number_person=2, num_pose_sample=1):
@@ -146,7 +146,8 @@ def generate_shape_pose_group(pose, shape, number_person=2, num_pose_sample=1):
                 pose_index_list.append(pose_com)
                 pose_com = []
 
-                # print(len(pose_index))
+                if len(pose_index) % 1000 == 0:
+                    print(len(pose_index))
 
     return pose_index_list, shape_index_list
 
@@ -187,8 +188,19 @@ def wall_collision(new_person, sphere_radius):
     return wall_collision
 
 
-def generate_person_obj(sphere_radius, poses, shapes, smpl, sample_trans=True, sample_rot=False):
+def generate_person_obj(sphere_radius, poses, shapes, smpl, sample_trans=True, sample_rot=False, device='cuda'):
     old_person_data = []
+
+    pose = torch.from_numpy(poses.reshape(-1, 24, 3)).to(device).type(torch.float32)
+    shape = torch.from_numpy(shapes.reshape(-1, 1, 10)).to(device).type(torch.float32)
+
+    vertices, joints, faces = smpl(shape, pose)
+
+    vertices = vertices.cpu().numpy()
+    # joints = joints.cpu().numpy()
+
+    pose = pose.cpu().numpy()
+    shape = shape.cpu().numpy()
 
     for i in range(len(poses)):
         find = False
@@ -209,27 +221,18 @@ def generate_person_obj(sphere_radius, poses, shapes, smpl, sample_trans=True, s
             obj_pose[0, 3] = T[0]
             obj_pose[2, 3] = T[2]
 
-            # obj
-            pose = torch.from_numpy(poses[i].reshape(24,3)).to('cpu').type(torch.float32)
-            shape = torch.from_numpy(shapes[i].reshape(1,10)).to('cpu').type(torch.float32)
-
-            vertices, joints, faces = smpl(shape, pose)
-
-            vertices = vertices[0].numpy()
-            joints = joints[0].numpy()
-
             # calculate bbox
-            vertices_posed = (np.dot(R, vertices.T) + T.reshape((3, 1))).T
+            vertices_posed = (np.dot(R, vertices[i].T) + T.reshape((3, 1))).T
             bbox = [vertices_posed.min(axis=0),
                     vertices_posed.max(axis=0)]
 
             new_person = {
                 'obj_pose': obj_pose,
-                'pose': pose.numpy(),
-                'shape': shape.numpy(),
-                'vertices': vertices,
+                'pose': pose[i],
+                'shape': shape[i],
+                'vertices': vertices[i],
                 'vertices_posed': vertices_posed,
-                'joints': joints,
+                # 'joints': joints[i],
                 'faces': faces,
                 'bbox': bbox
             }
@@ -354,13 +357,15 @@ def generate_dataset():
     img_id = 0
     total_image = num_cam * num_shape_com * num_pose_com
     # while img_id < total_image:
-    for shape_id, shape_index in enumerate(shape_id_list):
-        for pose_id, pose_index in enumerate(pose_id_list):
-            t1 = time.time()
-            person_obj = generate_person_obj(radius, pose_arr[pose_index], shape_arr[shape_index], smpl)
-            t2 = time.time()
 
-            print('t2-t1: ', t2-t1)
+    start_time = time.time()
+
+    for pose_id in tqdm.tqdm(range(len(pose_id_list))):
+        pose_index = pose_id_list[pose_id]
+        for shape_id, shape_index in enumerate(shape_id_list):
+            # t1 = time.time()
+            person_obj = generate_person_obj(radius, pose_arr[pose_index], shape_arr[shape_index], smpl, device=device)
+            # print("t2-t1:", time.time() - t1)
 
             for camera_id, camera_obj in enumerate(camera_obj_list):
                 _camera_pose[camera_id, :] = camera_obj['camera_pose']
@@ -380,13 +385,9 @@ def generate_dataset():
                 save_image(save_dir, image_name,  camera_obj['render'], person_obj, radius)
 
             img_id += 1
+            # print("%d / %d" % (total_image, img_id))
 
-            t3 = time.time()
-            print('t3-t2:', t3 - t2)
-
-            print("%d / %d" % (total_image, img_id))
-
-
+    print('total time:', time.time() - start_time)
 
     # save annotations
     dst_file = os.path.join(save_dir, 'annotations.h5')
