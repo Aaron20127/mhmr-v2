@@ -7,12 +7,15 @@ import trimesh
 import cv2
 import h5py
 import sys
+import time
+
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, abspath + '/../../')
 
 from common.utils import Rx_np, Ry_np
-from common.render import perspective_render_obj
+from common.render import PerspectiveRender
 from common.smpl import SMPL
 
 def generate_box_vertex_and_face(box):
@@ -44,8 +47,8 @@ def generate_box_vertex_and_face(box):
     return vertex, face
 
 
-def save_image(save_dir, image_name, height, width, camera_intrinsic, camera_pose,
-               person_obj, moving_radius, show_moving_area=False, show_bbox=False):
+def save_image(save_dir, image_name, render, person_obj,
+               moving_radius, show_moving_area=False, show_bbox=False):
     # mesh
     mesh = []
 
@@ -89,8 +92,9 @@ def save_image(save_dir, image_name, height, width, camera_intrinsic, camera_pos
 
 
     # render
-    render_img, depth_img = perspective_render_obj(camera_intrinsic, camera_pose, mesh,
-                                                   width=width, height=height, show_viwer=False)
+    t1 = time.time()
+    render_img, depth_img = render.run(mesh, show_viwer=False)
+    print('pr: ', time.time() - t1)
 
     # mask image
     mask_img = (render_img < 255) * 255
@@ -245,7 +249,8 @@ def generate_person_obj(sphere_radius, poses, shapes, smpl, sample_trans=True, s
     return old_person_data
 
 
-def generate_camera_pose(camera_init_pose, camera_theta_x_list, camera_theta_y_list):
+def generate_camera(camera_init_pose, camera_intrinsic, img_height, img_width,
+                    camera_theta_x_list, camera_theta_y_list):
     camera_pose_list = []
 
     for theta_x in camera_theta_x_list:
@@ -258,7 +263,9 @@ def generate_camera_pose(camera_init_pose, camera_theta_x_list, camera_theta_y_l
             camera_pose_list.append({
                     "camera_pose": camera_pose,
                     "theta_x": theta_x,
-                    "theta_y": theta_y
+                    "theta_y": theta_y,
+                    'render': PerspectiveRender(camera_intrinsic, camera_pose,
+                                                width=img_width, height=img_height)
                 })
 
     return camera_pose_list
@@ -316,7 +323,8 @@ def generate_dataset():
 
     camera_init_pose = np.eye(4)
     camera_init_pose[2,3] = d + radius
-    camera_pose_list = generate_camera_pose(camera_init_pose, camera_theta_x_list, camera_theta_y_list)
+    camera_obj_list = generate_camera(camera_init_pose, camera_intrinsic, height, width,
+                                      camera_theta_x_list, camera_theta_y_list)
 
 
     ## pose and shape
@@ -330,7 +338,7 @@ def generate_dataset():
 
 
     ## generate image and annotations
-    num_cam = len(camera_pose_list)
+    num_cam = len(camera_obj_list)
     num_shape_com = len(shape_id_list)
     num_pose_com = len(pose_id_list)
 
@@ -348,10 +356,13 @@ def generate_dataset():
     # while img_id < total_image:
     for shape_id, shape_index in enumerate(shape_id_list):
         for pose_id, pose_index in enumerate(pose_id_list):
+            t1 = time.time()
             person_obj = generate_person_obj(radius, pose_arr[pose_index], shape_arr[shape_index], smpl)
+            t2 = time.time()
 
-            print("%d / %d" % (total_image, img_id))
-            for camera_id, camera_obj in enumerate(camera_pose_list):
+            print('t2-t1: ', t2-t1)
+
+            for camera_id, camera_obj in enumerate(camera_obj_list):
                 _camera_pose[camera_id, :] = camera_obj['camera_pose']
 
                 for obj_id, obj in enumerate(person_obj):
@@ -366,10 +377,15 @@ def generate_dataset():
                                                                   str(img_id).zfill(6))
                 _image_name.append(image_name)
 
-                save_image(save_dir, image_name,  height, width, camera_intrinsic,
-                           camera_obj['camera_pose'], person_obj, radius)
+                save_image(save_dir, image_name,  camera_obj['render'], person_obj, radius)
 
             img_id += 1
+
+            t3 = time.time()
+            print('t3-t2:', t3 - t2)
+
+            print("%d / %d" % (total_image, img_id))
+
 
 
     # save annotations

@@ -9,33 +9,46 @@ import os
 
 from .utils import Rx_np
 
-def perspective_render_obj(camera_intrinsic, camera_pose, mesh, width=256, height=256, show_viwer=False):
-    scene = pyrender.Scene()
+class PerspectiveRender(object):
+    def __init__(self, camera_intrinsic, camera_pose, width=256, height=256):
+        self.scene = pyrender.Scene()
 
-    camera = pyrender.camera.IntrinsicsCamera(
-            fx=camera_intrinsic[0][0], fy=camera_intrinsic[1][1],
-            cx=camera_intrinsic[0][2], cy=camera_intrinsic[1][2])
+        # add camera
+        camera = pyrender.camera.IntrinsicsCamera(
+                fx=camera_intrinsic[0][0], fy=camera_intrinsic[1][1],
+                cx=camera_intrinsic[0][2], cy=camera_intrinsic[1][2])
 
-    scene.add(camera, pose=camera_pose)
+        self.scene.add(camera, pose=camera_pose)
+
+        # add light
+        light = pyrender.PointLight(color=[1.0, 1.0, 1.0],
+                                    intensity=40 * np.linalg.norm(camera_pose[:3, 3]))
+
+        self.scene.add(light, pose=camera_pose)
+
+        # render
+        self.r = pyrender.OffscreenRenderer(viewport_width = width,
+                                            viewport_height = height,
+                                            point_size = 1.0)
 
 
-    # add spere
-    for m in mesh:
-        scene.add(m)
+    def run(self, mesh, show_viwer=False):
+        # add mesh
+        mesh_node = []
+        for m in mesh:
+            node = self.scene.add(m)
+            mesh_node.append(node)
 
-    if show_viwer:
-        pyrender.Viewer(scene, use_raymond_lighting=True)
+        if show_viwer:
+            pyrender.Viewer(self.scene, use_raymond_lighting=True)
 
-    # add light
-    light = pyrender.PointLight(color=[1.0, 1.0, 1.0],
-                                intensity=40 * np.linalg.norm(camera_pose[:3, 3]))
-    scene.add(light, pose=camera_pose)
+        color, depth = self.r.render(self.scene)
 
-    # render
-    r = pyrender.OffscreenRenderer(viewport_width=width,viewport_height = height,point_size = 1.0)
-    color, depth = r.render(scene)
+        # remove mesh
+        for node in mesh_node:
+            self.scene.remove_node(node)
 
-    return color, depth
+        return color, depth
 
 
 
