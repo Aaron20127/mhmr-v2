@@ -15,7 +15,7 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, abspath + '/../../')
 
-from common.utils import Rx_np, Ry_np
+from common.utils import Rx_np, Ry_np, Ry_torch
 from common.render import PerspectiveRender
 from common.smpl import SMPL
 
@@ -146,110 +146,130 @@ def generate_shape_pose_group(pose, shape, number_person=2, num_pose_sample=1):
                 pose_index_list.append(pose_com)
                 pose_com = []
 
-                if len(pose_index) % 1000 == 0:
-                    print(len(pose_index))
+                if len(pose_index) % 1000 == 0 and len(pose_index) != 0:
+                    print("remain pose %d" % (len(pose_index)))
 
     return pose_index_list, shape_index_list
 
 
-def person_collision(old_persons, new_person):
-    person_collision = False
+def person_collision(bbox):
+    collision = False
 
-    for old_person in old_persons:
-        boxA = old_person['bbox']
-        boxB = new_person['bbox']
+    num_person = len(bbox)
+    for i in range(num_person):
+        for j in range(i+1, num_person):
+            boxA = bbox[i]
+            boxB = bbox[j]
 
-        xA = max(boxA[0][0], boxB[0][0])
-        yA = max(boxA[0][1], boxB[0][1])
-        zA = max(boxA[0][2], boxB[0][2])
+            xA = max(boxA[0][0], boxB[0][0])
+            yA = max(boxA[0][1], boxB[0][1])
+            zA = max(boxA[0][2], boxB[0][2])
 
-        xB = min(boxA[1][0], boxB[1][0])
-        yB = min(boxA[1][1], boxB[1][1])
-        zB = min(boxA[1][2], boxB[1][2])
+            xB = min(boxA[1][0], boxB[1][0])
+            yB = min(boxA[1][1], boxB[1][1])
+            zB = min(boxA[1][2], boxB[1][2])
 
-        # The method of finding intersection region in space is different from that of image, we don't need add 1.
-        interArea = max(0, xB - xA) * max(0, yB - yA) * max(0, zB - zA)
+            # The method of finding intersection region in space is different from that of image, we don't need add 1.
+            interArea = max(0, xB - xA) * max(0, yB - yA) * max(0, zB - zA)
 
-        if interArea > 0:
-            person_collision = True
+            if interArea > 0:
+                collision = True
+                break
+
+        if collision == True:
             break
 
-    return person_collision
+    return collision
 
 
-def wall_collision(new_person, sphere_radius):
-    wall_collision = False
+def wall_collision(vertices_list, sphere_radius):
+    collision = False
 
-    vertices = new_person['vertices_posed']
+    for vertices in vertices_list:
+        if np.sum(vertices**2, axis=1).max() >= sphere_radius**2:
+            collision = True
+            break
 
-    if np.sum(vertices**2, axis=1).max() >= sphere_radius**2:
-        wall_collision = True
-
-    return wall_collision
+    return collision
 
 
-def generate_person_obj(sphere_radius, poses, shapes, smpl, sample_trans=True, sample_rot=False, device='cuda'):
-    old_person_data = []
+def generate_person_obj(sphere_radius, poses, shapes, smpl, sample_trans=True, sample_rot=False,
+                        max_sample_times=50, device='cpu'):
+    person_obj_list = []
 
     pose = torch.from_numpy(poses.reshape(-1, 24, 3)).to(device).type(torch.float32)
     shape = torch.from_numpy(shapes.reshape(-1, 1, 10)).to(device).type(torch.float32)
 
     vertices, joints, faces = smpl(shape, pose)
 
-    vertices = vertices.cpu().numpy()
+    # vertices = vertices.cpu().numpy()
     # joints = joints.cpu().numpy()
 
-    pose = pose.cpu().numpy()
-    shape = shape.cpu().numpy()
+    # pose = pose.cpu().numpy()
+    # shape = shape.cpu().numpy()
 
-    for i in range(len(poses)):
-        find = False
-        while not find:
-            # obj pose
-            T = np.zeros(3)
-            if sample_trans:
-                T = np.array([np.random.uniform(-sphere_radius, sphere_radius), 0,
-                              np.random.uniform(-sphere_radius, sphere_radius)])
+    # random translation and rotation
+    num_person = len(poses)
 
-            R = np.eye(3)
-            if sample_rot:
-                theta_y = np.random.uniform(0, 2*np.pi, 1)
-                R = Ry_np(theta_y)
+    sample_times = 0
+    find = False
+    while sample_times < max_sample_times and not find:
+        obj_pose = torch.eye(4).repeat((num_person, 1, 1)).to(device)
+        if sample_trans:
+            # translation
+            random_trans = sphere_radius * (2 * torch.rand(num_person, 2) - 1)
 
-            obj_pose = np.eye(4)
-            obj_pose[:3, :3] = R
-            obj_pose[0, 3] = T[0]
-            obj_pose[2, 3] = T[2]
+            obj_pose[:, 0, 3] = random_trans[:, 0]
+            obj_pose[:, 2, 3] = random_trans[:, 1]
 
-            # calculate bbox
-            vertices_posed = (np.dot(R, vertices[i].T) + T.reshape((3, 1))).T
-            bbox = [vertices_posed.min(axis=0),
-                    vertices_posed.max(axis=0)]
+        if sample_rot:
+            # rotation
+            theta_y =  2 * np.pi * torch.rand(num_person)
+            obj_pose[:, :3, :3] = Ry_torch(theta_y)
 
-            new_person = {
-                'obj_pose': obj_pose,
-                'pose': pose[i],
-                'shape': shape[i],
-                'vertices': vertices[i],
-                'vertices_posed': vertices_posed,
+        # transpose
+        homogeneous_vertices = torch.cat((vertices,
+                                          torch.ones(vertices.size(0), vertices.size(1), 1).to(device)), 2)
+        vertices_posed = torch.einsum("bij, bnj->bni", obj_pose, homogeneous_vertices)[:, :, :3]
+
+        # bbox
+        bbox_min = vertices_posed.min(axis=1)[0].cpu().numpy()
+        bbox_max = vertices_posed.max(axis=1)[0].cpu().numpy()
+
+        bbox = []
+        for i in range(num_person):
+            bbox.append([bbox_min[i], bbox_max[i]])
+
+        # calculate person collison
+        if person_collision(bbox):
+            sample_times += 1
+            continue
+
+        # calculate collison between people and wall
+        if wall_collision(vertices_posed.cpu().numpy(), sphere_radius):
+            sample_times += 1
+            continue
+
+        for i in range(num_person):
+            new_person_obj = {
+                'obj_pose': obj_pose[i].cpu().numpy(),
+                'pose': pose[i].cpu().numpy(),
+                'shape': shape[i].cpu().numpy(),
+                'vertices': vertices[i].cpu().numpy(),
+                'vertices_posed': vertices_posed[i].cpu().numpy(),
                 # 'joints': joints[i],
                 'faces': faces,
-                'bbox': bbox
+                'bbox': bbox[i]
             }
 
-            # calculate person collison
-            if person_collision(old_person_data, new_person):
-                continue
-
-            # calculate collison between people and wall
-            if wall_collision(new_person, sphere_radius):
-                continue
-
             # add new person
-            old_person_data.append(new_person)
-            find = True
+            person_obj_list.append(new_person_obj)
 
-    return old_person_data
+        find = True
+
+    valid = (sample_times < max_sample_times)
+
+    return person_obj_list, valid
 
 
 def generate_camera(camera_init_pose, camera_intrinsic, img_height, img_width,
@@ -347,30 +367,37 @@ def generate_dataset():
 
     # _kp2ds = np.zeros((num_cam, num_shape_com, num_pose_com, num_person, 18, 3))
     # _kp3ds = np.zeros((num_cam, num_shape_com, num_pose_com, num_person, 19, 3))
+    _valid = np.ones((num_cam, num_shape_com, num_pose_com, num_person), dtype=np.int32)
     _shape = np.zeros((num_cam, num_shape_com, num_pose_com, num_person, 10))
     _pose = np.zeros((num_cam, num_shape_com, num_pose_com, num_person, 24, 3))
     _obj_pose = np.zeros((num_cam, num_shape_com, num_pose_com, num_person, 4, 4))
     _camera_pose = np.zeros((num_cam, 4, 4))
+    _camera_intrinsic = camera_intrinsic
     _image_index = np.zeros((num_cam, num_shape_com, num_pose_com), dtype=np.int64)
     _image_name = []
 
     img_id = 0
     total_image = num_cam * num_shape_com * num_pose_com
-    # while img_id < total_image:
-
     start_time = time.time()
 
     for pose_id in tqdm.tqdm(range(len(pose_id_list))):
         pose_index = pose_id_list[pose_id]
         for shape_id, shape_index in enumerate(shape_id_list):
             # t1 = time.time()
-            person_obj = generate_person_obj(radius, pose_arr[pose_index], shape_arr[shape_index], smpl, device=device)
+            person_obj_list, valid = generate_person_obj(radius, pose_arr[pose_index],
+                                                         shape_arr[shape_index], smpl,
+                                                         max_sample_times=50, device=device)
             # print("t2-t1:", time.time() - t1)
+
+            if not valid:
+                _valid[:, shape_id, pose_id, :] = 0
+                print('Invalid person obj, shape_id %d, pose_id, %d' % (shape_id, pose_id))
+                continue
 
             for camera_id, camera_obj in enumerate(camera_obj_list):
                 _camera_pose[camera_id, :] = camera_obj['camera_pose']
 
-                for obj_id, obj in enumerate(person_obj):
+                for obj_id, obj in enumerate(person_obj_list):
                     _shape[camera_id, shape_id, pose_id, obj_id] = obj['shape'].flatten()
                     _pose[camera_id, shape_id, pose_id, obj_id] = obj['pose']
                     _obj_pose[camera_id, shape_id, pose_id, obj_id] = obj['obj_pose']
@@ -382,7 +409,7 @@ def generate_dataset():
                                                                   str(img_id).zfill(6))
                 _image_name.append(image_name)
 
-                save_image(save_dir, image_name,  camera_obj['render'], person_obj, radius)
+                save_image(save_dir, image_name,  camera_obj['render'], person_obj_list, radius)
 
             img_id += 1
             # print("%d / %d" % (total_image, img_id))
@@ -393,6 +420,7 @@ def generate_dataset():
     dst_file = os.path.join(save_dir, 'annotations.h5')
     dst_fp = h5py.File(dst_file, 'w')
 
+    dst_fp.create_dataset('valid', data=_valid)
     dst_fp.create_dataset('shape', data=_shape)
     dst_fp.create_dataset('pose', data=_pose)
     dst_fp.create_dataset('obj_pose', data=_obj_pose)
