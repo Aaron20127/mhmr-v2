@@ -392,7 +392,7 @@ def generate_dataset():
             # t1 = time.time()
             person_obj_list, valid = generate_person_obj(radius, pose_arr[pose_index],
                                                          shape_arr[shape_index], smpl,
-                                                         max_sample_times=2, device=device)
+                                                         max_sample_times=100, device=device)
             # print("t2-t1:", time.time() - t1)
 
             if not valid:
