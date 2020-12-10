@@ -48,7 +48,7 @@ def generate_box_vertex_and_face(box):
     return vertex, face
 
 
-def save_image(save_dir, image_name, render, person_obj,
+def save_image(save_dir, image_render_name, image_full_mask_name, render, person_obj,
                moving_radius, show_moving_area=False, show_bbox=False):
     # mesh
     mesh = []
@@ -62,6 +62,7 @@ def save_image(save_dir, image_name, render, person_obj,
         faces = np.concatenate((person_obj[0]['faces'], person_obj[1]['faces']+6890), axis=0)
 
         vertex_colors = np.ones([vertices.shape[0], 4]) * [0.3, 0.3, 0.3, 1.0]
+
         tri_mesh = trimesh.Trimesh(vertices, faces,
                                    vertex_colors = vertex_colors)
     else:
@@ -70,7 +71,6 @@ def save_image(save_dir, image_name, render, person_obj,
     # smooth = True: vertex shading
     # smooth = False: face shading
     mesh_obj = pyrender.Mesh.from_trimesh(tri_mesh, wireframe=False, smooth=True)
-
     mesh.append(mesh_obj)
 
     if show_moving_area:
@@ -100,17 +100,20 @@ def save_image(save_dir, image_name, render, person_obj,
     # render
     render_img, depth_img = render.run(mesh, show_viwer=False)
 
-    # save
-    local_dir =  image_name.split('/')
-    current_save_dir = os.path.join(save_dir, local_dir[0], local_dir[1])
+    # save dir
+    image_render_dir =  image_render_name.split('/')
+    current_save_dir = os.path.join(save_dir, image_render_dir[0], image_render_dir[1], image_render_dir[2])
+    os.makedirs(current_save_dir, exist_ok=True)
+
+    image_full_mask_dir =  image_full_mask_name.split('/')
+    current_save_dir = os.path.join(save_dir, image_full_mask_dir[0], image_full_mask_dir[1], image_full_mask_dir[2])
     os.makedirs(current_save_dir, exist_ok=True)
 
     # render_img_gray = cv2.cvtColor(render_img, cv2.COLOR_BGR2GRAY)
-    mask_img = (cv2.cvtColor(render_img, cv2.COLOR_BGR2GRAY) < 255) * 255
+    full_mask_img = (cv2.cvtColor(render_img, cv2.COLOR_BGR2GRAY) < 255) * 255
 
-    cv2.imwrite(os.path.join(save_dir, local_dir[0], local_dir[1], 'render_' + local_dir[2]), render_img)
-    cv2.imwrite(os.path.join(save_dir, local_dir[0], local_dir[1], 'mask_' + local_dir[2]), mask_img)
-    # cv2.imwrite(os.path.join(save_dir, local_dir[0], local_dir[1], 'depth_' + local_dir[2]), depth_img)
+    cv2.imwrite(os.path.join(save_dir, image_render_name), render_img)
+    cv2.imwrite(os.path.join(save_dir, image_full_mask_name), full_mask_img)
 
 
 def generate_shape_pose_group(pose, shape, number_person=2, num_pose_sample=1):
@@ -303,6 +306,9 @@ def get_smpl_para_combination(src_path, num_shape=2):
 
 
 def generate_dataset():
+    ## annotation name, 'train.h5' or 'val.h5'
+    annotation_name = 'train.h5'
+
     ## save dir
     save_dir = os.path.join(abspath, 'dataset')
     os.makedirs(save_dir, exist_ok=True)
@@ -374,10 +380,10 @@ def generate_dataset():
     _camera_pose = np.zeros((num_cam, 4, 4))
     _camera_intrinsic = camera_intrinsic
     _image_index = np.zeros((num_cam, num_shape_com, num_pose_com), dtype=np.int64)
-    _image_name = []
+    _image_render_list = []
+    _image_full_mask_list = []
 
     img_id = 0
-    total_image = num_cam * num_shape_com * num_pose_com
     start_time = time.time()
 
     for pose_id in tqdm.tqdm(range(len(pose_id_list))):
@@ -386,7 +392,7 @@ def generate_dataset():
             # t1 = time.time()
             person_obj_list, valid = generate_person_obj(radius, pose_arr[pose_index],
                                                          shape_arr[shape_index], smpl,
-                                                         max_sample_times=50, device=device)
+                                                         max_sample_times=2, device=device)
             # print("t2-t1:", time.time() - t1)
 
             if not valid:
@@ -402,14 +408,20 @@ def generate_dataset():
                     _pose[camera_id, shape_id, pose_id, obj_id] = obj['pose']
                     _obj_pose[camera_id, shape_id, pose_id, obj_id] = obj['obj_pose']
 
-                _image_index[camera_id, shape_id, pose_id] = len(_image_name)
+                _image_index[camera_id, shape_id, pose_id] = len(_image_render_list)
 
-                image_name = 'images/camera_rx_%s_ry_%s/image_%s.jpg' % (camera_obj['theta_x'],
-                                                                  camera_obj['theta_y'],
-                                                                  str(img_id).zfill(6))
-                _image_name.append(image_name)
+                image_render_name = 'images/camera_rx_%s_ry_%s/render/%s.jpg' % (camera_obj['theta_x'],
+                                                                             camera_obj['theta_y'],
+                                                                             str(img_id).zfill(8))
+                image_full_mask_name = 'images/camera_rx_%s_ry_%s/full_mask/%s.jpg' % (camera_obj['theta_x'],
+                                                                             camera_obj['theta_y'],
+                                                                             str(img_id).zfill(8))
 
-                save_image(save_dir, image_name,  camera_obj['render'], person_obj_list, radius)
+                _image_render_list.append(image_render_name)
+                _image_full_mask_list.append(image_full_mask_name)
+
+                save_image(save_dir, image_render_name, image_full_mask_name, camera_obj['render'],
+                           person_obj_list, radius)
 
             img_id += 1
             # print("%d / %d" % (total_image, img_id))
@@ -417,7 +429,7 @@ def generate_dataset():
     print('total time:', time.time() - start_time)
 
     # save annotations
-    dst_file = os.path.join(save_dir, 'annotations.h5')
+    dst_file = os.path.join(save_dir, annotation_name)
     dst_fp = h5py.File(dst_file, 'w')
 
     dst_fp.create_dataset('valid', data=_valid)
@@ -427,7 +439,8 @@ def generate_dataset():
     dst_fp.create_dataset('camera_pose', data=_camera_pose)
     dst_fp.create_dataset('camera_intrinsic', data=camera_intrinsic)
     dst_fp.create_dataset('image_index', data=_image_index)
-    dst_fp.create_dataset('image_name', data=np.array(_image_name, dtype='S'))
+    dst_fp.create_dataset('image_render_name', data=np.array(_image_render_list, dtype='S'))
+    dst_fp.create_dataset('image_full_mask_name', data=np.array(_image_full_mask_list, dtype='S'))
     dst_fp.close()
 
 
