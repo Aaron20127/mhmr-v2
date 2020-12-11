@@ -99,14 +99,16 @@ class DatasetTwoPerson(Dataset):
         render_img, full_mask_img = self._get_image(img_id)
 
         ## 2.get data
-        shape_new, pose_new = self._get_data(index)
+        shape, pose = self._get_data(index)
 
+
+        ## 3. input
+        input = render_img
 
         return {
-            'imagepath': self.img_dir + '/' + imagename,
-            'kp2d_input': kp2d_input,
-            'kp2d': kp2d,
-            'gt': gt
+            'input': input,
+            'shape': shape,
+            'pose': pose
         }
 
 
@@ -120,8 +122,10 @@ if __name__ == '__main__':
         split = 'train'
     )
 
-    data_loader = DataLoader(data, batch_size=1, shuffle=False)
+    data_loader = DataLoader(data, batch_size=2, shuffle=False)
 
     for batch in data_loader:
         print(1)
+
+
 

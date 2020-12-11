@@ -1,4 +1,24 @@
 
+class Opt(object):
+
+    ## log
+    outout_name = 'test'
+
+    ## train
+    seed = 223
+    gpus = '-1'             # -1 cpu, 0,1,2 ... gpu
+    num_epoch = 10
+    batch_size = 16
+    lr = 1e-4
+
+    ## loss
+    pose_weight = 1.0
+    shape_weight = 1.0
+
+    ## dataload
+    num_workers = 2
+
+
 import time
 import os
 abspath = os.path.abspath(os.path.dirname(__file__))
