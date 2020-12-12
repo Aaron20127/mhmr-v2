@@ -14,7 +14,7 @@ def collect_3dpw_smpl_para(src_path, save_dir):
 
 def collect_human36_smpl_para():
 
-    src_file = os.path.join('F:\\paper\\dataset\\hum36m-toy\\hum36m-toy', 'annot.h5')
+    src_file = os.path.join('D:\\paper\\human_body_reconstruction\\datasets\\human_reconstruction\\hum36m-toy', 'annot.h5')
     dst_dir = os.path.join(abspath, 'smpl_para')
     dst_file = os.path.join(dst_dir, 'human36m.h5')
 

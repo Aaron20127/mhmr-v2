@@ -363,7 +363,7 @@ def generate_dataset():
     # shape_arr = (np.random.rand(2,10) - 0.5) * 0.06 # n x 10
     # pose_arr = np.zeros((1, 72)) # n x 72
     shape_arr, pose_arr = get_smpl_para_combination(smpl_para, num_shape=1)
-    pose_id_list, shape_id_list = generate_shape_pose_group(pose_arr, shape_arr, number_person=num_person)
+    pose_id_list, shape_id_list = generate_shape_pose_group(pose_arr[:10], shape_arr, number_person=num_person)
 
 
     ## generate image and annotations
@@ -410,12 +410,16 @@ def generate_dataset():
 
                 _image_index[camera_id, shape_id, pose_id] = len(_image_render_list)
 
-                image_render_name = 'images/camera_rx_%s_ry_%s/render/%s.jpg' % (camera_obj['theta_x'],
-                                                                             camera_obj['theta_y'],
-                                                                             str(img_id).zfill(8))
-                image_full_mask_name = 'images/camera_rx_%s_ry_%s/full_mask/%s.jpg' % (camera_obj['theta_x'],
-                                                                             camera_obj['theta_y'],
-                                                                             str(img_id).zfill(8))
+                image_render_name = 'images_%s/camera_rx_%s_ry_%s/render/%s.jpg' % \
+                                    (annotation_name[:-3],
+                                     camera_obj['theta_x'],
+                                     camera_obj['theta_y'],
+                                     str(img_id).zfill(8))
+                image_full_mask_name = 'images_%s/camera_rx_%s_ry_%s/full_mask/%s.jpg' % \
+                                       (annotation_name[:-3],
+                                        camera_obj['theta_x'],
+                                        camera_obj['theta_y'],
+                                        str(img_id).zfill(8))
 
                 _image_render_list.append(image_render_name)
                 _image_full_mask_list.append(image_full_mask_name)

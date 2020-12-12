@@ -1,51 +1,58 @@
 
 import os
 import sys
-import tqdm
+from tqdm import tqdm
 import torch
 
 abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, abspath + '/../')
 
-from .model import BaseNet, HmrLoss, ModelWithLoss
+from model import BaseNet, HmrLoss, ModelWithLoss
 from common.checkpoint import load_model, save_model
 from common.utils import show_net_para
 from common.log import AverageLoss
-from .opts import opt
+from common.data_parallel import DataParallel
 
-from .dataloader import dataloader
+from config import opt
+
+from dataloader import all_loader
 
 
 class HMRTrainer(object):
     def __init__(self, logger):
         self.logger = logger
-        self.start_epoch = 1
-        self.log_id = 1
-        self.val_id = 1
+        self.start_epoch = 0
+        self.log_train_id = 0
+        self.log_val_id = 0
 
         self.build_model()
         self.create_data_loader()
+        self.set_device()
 
-
-    def build_model(self, opt):
+    def build_model(self):
         print('start building model ...')
 
         ### 1.object detection model
         model = BaseNet()
         optimizer = torch.optim.Adam(model.parameters(), opt.lr)
 
-        if os.path.exists(opt.load_model):
+        if os.path.exists(opt.checkpoint_path):
             model, optimizer, self.start_epoch = \
               load_model(
-                  model, opt.load_model,
+                  model, opt.checkpoint_path,
                   optimizer, opt.resume,
                   opt.lr
               )
 
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=opt.lr_scheduler_factor, patience=opt.lr_scheduler_patience,
-            verbose=True, threshold=opt.lr_scheduler_threshold, threshold_mode='rel',
-            cooldown=0, min_lr=0, eps=1e-10)
+                                        optimizer,
+                                        mode='min',
+                                        factor=opt.lr_scheduler_factor,
+                                        patience=opt.lr_scheduler_patience,
+                                        verbose=opt.lr_verbose,
+                                        threshold=opt.lr_scheduler_threshold,
+                                        threshold_mode='rel',
+                                        cooldown=0, min_lr=0)
 
         self.model = model
         self.optimizer = optimizer
@@ -56,41 +63,64 @@ class HMRTrainer(object):
         show_net_para(model)
         print('finished build model.')
 
-
     def create_data_loader(self):
         print('start creating data loader ...')
-        self.train_loader, self.val_loader, self.test_loader = dataloader()
+        self.train_loader, self.val_loader, self.test_loader = all_loader()
         print('finished create data loader.')
 
+    def set_device(self):
+        if len(opt.gpus_list) > 1:
+            self.model_with_loss = DataParallel(
+                self.model_with_loss,
+                chunk_sizes=opt.chunk_sizes,
+                device_ids=opt.gpus_list).to(opt.device)
+        else:
+            self.model_with_loss = self.model_with_loss.to(opt.device)
 
-    def run_val(self):
+        for state in self.optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(device=opt.device, non_blocking=True)
+
+    def val(self):
         """ run one epoch """
-        data_loader = self.val_loader
-        model_with_loss = self.model_with_loss
-        model_with_loss.val()
-
-        average_loss = AverageLoss()
-        for i, batch in enumerate(data_loader):
-            batch = [batch[k].to(opt.device, non_blocking=True) for k in batch.keys()]
-            output, loss, loss_stats = model_with_loss(batch)
-
-            average_loss.add(loss_stats)
-
-        self.logger(average_loss.get_average(), self.val_id)
-
-
-    def run_train_epoch(self):
-        """ run one epoch """
-        data_loader = self.train_loader
-        model_with_loss = self.model_with_loss
-        model_with_loss.train()
-
         average_loss = AverageLoss()
 
-        for i, batch in enumerate(data_loader):
+        with torch.no_grad():
+            model_with_loss = self.model_with_loss
+            if len(opt.gpus_list) > 1:
+                model_with_loss = self.model_with_loss.module  # what this operation does?
+            model_with_loss.eval()
+            torch.cuda.empty_cache()
+
+            for batch in self.val_loader:
+                for k in batch.keys():
+                    batch[k] = batch[k].to(opt.device, non_blocking=True)
+                output, loss, loss_stats = self.model_with_loss(batch)
+
+                average_loss.add(loss_stats)
+
+        self.logger.scalar_summary_dict(average_loss.get_average())
+
+
+    def train_epoch(self):
+        """ run one epoch """
+        self.model_with_loss.train()
+        average_loss = AverageLoss()
+        len_data = len(self.train_loader)
+
+        # log
+        tqdm_loader = tqdm(self.train_loader, leave=True)
+        tqdm_loader.set_description('train %d/%d' % (self.epoch, opt.num_epoch))
+
+        for iter_id, batch in enumerate(tqdm_loader):
+            ## log id
+            self.logger.update_summary_id((self.epoch-1) * len_data + iter_id)
+
             ## forward
-            batch = [batch[k].to(opt.device, non_blocking=True) for k in batch.keys()]
-            output, loss, loss_stats = model_with_loss(batch)
+            for k in batch.keys():
+                batch[k] = batch[k].to(opt.device, non_blocking=True)
+            output, loss, loss_stats = self.model_with_loss(batch)
 
             loss = loss.mean()
             self.optimizer.zero_grad()
@@ -99,38 +129,45 @@ class HMRTrainer(object):
             self.lr_scheduler.step(loss)
 
             ## val
-            if opt.val_iter_interval > 0 and \
-               i % opt.val_interval == 0:
-                self.run_val()
-                self.model_with_loss.train()
-                self.val_id += opt.val_iter_interval
+            if opt.val and opt.val_iter_interval > 0 and \
+               iter_id % opt.val_iter_interval == 0:
+                self.val()
 
             ## log
             average_loss.add(loss_stats)
 
-            if opt.log_iter_interval > 0 and \
-               i % opt.log_iter_interval == 0:
-                self.logger(average_loss.get_average(), self.log_id)
-                self.log_id += opt.log_iter_interval
+            if opt.train_iter_interval > 0 and \
+               iter_id % opt.train_iter_interval == 0:
+
+                # no average log
+                # tqdm_loader.set_postfix(loss_stats)
+                # self.logger.scalar_summary_dict(loss_stats)
+
+                ## epoch average log
+                tqdm_loader.set_postfix(average_loss.get_average())
+                self.logger.scalar_summary_dict(average_loss.get_average())
+
+                ## train_iter_interval average log
+                # average_loss.clear()
 
             del output, loss, loss_stats
 
 
-    def run(self):
-        print('start training ...')
+    def train(self):
+        for epoch in range(self.start_epoch + 1, opt.num_epoch + 1):
+            self.epoch = epoch
 
-        start_epoch = self.start_epoch
+            # train
+            self.train_epoch()
 
-        for epoch in tqdm.tqdm(range(start_epoch + 1, opt.num_epoch + 1)):
-
-            if opt.train:
-               self.run_train_epoch()
-
+            # val
             if opt.val:
-               self.run_val()
+               self.val()
 
-            if opt.train and \
-               opt.save_epoch_interval > 0 and \
+            if opt.save_epoch_interval > 0 and \
                epoch % opt.save_epoch_interval == 0:
-                save_model(os.path.join(opt.save_dir, 'model_epoch_{}.pth'.format(epoch)),
-                                epoch, self.model, self.optimizer)
+                save_model(os.path.join(opt.logger.log_dir, 'model_epoch_{}.pth'.format(epoch)),
+                            epoch, self.model, self.optimizer)
+
+
+

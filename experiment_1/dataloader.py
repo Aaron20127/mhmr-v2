@@ -7,8 +7,8 @@ sys.path.insert(0, abspath + '/../')
 
 import torch
 from torch.utils.data import Dataset, DataLoader
-from .opts import opt
-from .dataset import DatasetTwoPerson
+from config import opt
+from dataset import DatasetTwoPerson
 
 
 def dataloader_train():
@@ -20,7 +20,8 @@ def dataloader_train():
     )
 
     loader = DataLoader(data, batch_size=opt.batch_size,
-                              shuffle=True)
+                              shuffle=True,
+                              drop_last=True)
 
     return loader
 
@@ -35,7 +36,8 @@ def dataloader_val():
 
     loader = DataLoader(data, batch_size=opt.batch_size,
                               num_workers=opt.num_workers,
-                              shuffle=True)
+                              shuffle=True,
+                              drop_last=True)
 
     return loader
 
@@ -44,5 +46,5 @@ def dataloader_test():
     return None
 
 
-def dataloader():
+def all_loader():
     return dataloader_train(), dataloader_val(), dataloader_test()

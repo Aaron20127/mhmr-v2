@@ -9,11 +9,12 @@ import h5py
 import json
 import cv2
 import numpy as np
+from tqdm import tqdm
 
 import torch
 from torch.utils.data import Dataset, DataLoader
 from common.utils import Clock
-from opts import opt
+from config import opt
 
 
 class DatasetTwoPerson(Dataset):
@@ -71,6 +72,9 @@ class DatasetTwoPerson(Dataset):
         render_img = cv2.imread(os.path.join(self.data_dir, render_img_name))
         full_mask_img = cv2.imread(os.path.join(self.data_dir, full_mask_img_name))
 
+        render_img = render_img.transpose((2, 0, 1)).astype(np.float32)
+        full_mask_img.transpose((2, 0, 1)).astype(np.float32)
+
         return render_img, full_mask_img
 
 
@@ -85,8 +89,8 @@ class DatasetTwoPerson(Dataset):
         shape = self.shape[index[0], index[1], index[2]]
         pose = self.pose[index[0], index[1], index[2]]
 
-        shape_new = shape[near_2_far_order]
-        pose_new = pose[near_2_far_order]
+        shape_new = shape[near_2_far_order].astype(np.float32)
+        pose_new = pose[near_2_far_order].reshape(-1, 72).astype(np.float32)
 
         return shape_new, pose_new
 
@@ -106,9 +110,9 @@ class DatasetTwoPerson(Dataset):
         input = render_img
 
         return {
-            'input': input,
-            'shape': shape,
-            'pose': pose
+            'input': input.astype(np.float32),
+            'shape': shape.astype(np.float32),
+            'pose': pose.astype(np.float32)
         }
 
 
@@ -124,8 +128,17 @@ if __name__ == '__main__':
 
     data_loader = DataLoader(data, batch_size=2, shuffle=False)
 
-    for batch in data_loader:
-        print(1)
+    from tqdm import trange
+    from random import random, randint
+    from time import sleep
 
+    t = tqdm(data_loader)
+    for i, j in enumerate(t):
+        # 描述将显示在左边
+        t.set_description('GEN %i' % 1)
+        # 后缀将显示在右边，根据参数的数据类型自动格式化
+        t.set_postfix(loss=random(), gen=randint(1, 999), str='h',
+                      lst=[1, 2])
+        # sleep(0.1)
 
 
