@@ -16,6 +16,7 @@ class AverageLoss(object):
 
     def add(self, dict_in):
         if not self.has_init:
+            self.count = 0
             self.has_init = True
             self.total_dict = dict_in
 
@@ -42,9 +43,12 @@ class Logger(object):
         self.summary_id = 0
 
         # log dir
-        self.log_dir = os.path.join(dst_dir, 'output', opt.exp_name)
+        self.log_dir = os.path.join(dst_dir, 'exp', opt.exp_name)
         shutil.rmtree(self.log_dir, ignore_errors=True)
         os.makedirs(self.log_dir, exist_ok=True)
+
+        # copy config file
+        shutil.copy(dst_dir + '/config.py', self.log_dir)
 
         # Summary Writer
         self.writer = tensorboardX.SummaryWriter(log_dir=self.log_dir)
@@ -54,10 +58,11 @@ class Logger(object):
         self.summary_id = summary_id
 
 
-    def scalar_summary_dict(self, tag_dict):
+    def scalar_summary_dict(self, tag_dict, prefix=''):
         """ Log a dict scalar variable. """
         for k, v in tag_dict.items():
-            self.writer.add_scalar(k, v, self.summary_id)
+            name = prefix + '_' + k
+            self.writer.add_scalar(name, v, self.summary_id)
         self.writer.flush()
 
 

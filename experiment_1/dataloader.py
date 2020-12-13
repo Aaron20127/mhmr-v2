@@ -20,8 +20,9 @@ def dataloader_train():
     )
 
     loader = DataLoader(data, batch_size=opt.batch_size,
-                              shuffle=True,
-                              drop_last=True)
+                              num_workers=opt.num_workers,
+                              shuffle=opt.shuffle,
+                              drop_last=opt.drop_last)
 
     return loader
 
@@ -36,8 +37,8 @@ def dataloader_val():
 
     loader = DataLoader(data, batch_size=opt.batch_size,
                               num_workers=opt.num_workers,
-                              shuffle=True,
-                              drop_last=True)
+                              shuffle=opt.shuffle,
+                              drop_last=opt.drop_last)
 
     return loader
 

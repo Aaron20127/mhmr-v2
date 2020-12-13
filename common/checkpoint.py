@@ -14,7 +14,7 @@ def save_model(path, epoch, model, optimizer=None):
     torch.save(data, path)
 
 
-def load_model(model, model_path, optimizer=None, resume=False, lr=0):
+def load_model(model, model_path, optimizer=None, resume=False):
     start_epoch = 0
     checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)
     print('loaded {}, epoch {}'.format(model_path, checkpoint['epoch']))
@@ -55,14 +55,9 @@ def load_model(model, model_path, optimizer=None, resume=False, lr=0):
             optimizer.load_state_dict(checkpoint['optimizer'])
             start_epoch = checkpoint['epoch']
 
-            if lr > 0:
-                for param_group in optimizer.param_groups:
-                    param_group['lr'] = lr
-                    print('New start lr', lr)
-            else:
-                for param_group in optimizer.param_groups:
-                    if 'lr' in param_group.keys():
-                        print('Resume start lr', param_group['lr'])
+            for param_group in optimizer.param_groups:
+                if 'lr' in param_group.keys():
+                    print('Resume start lr', param_group['lr'])
 
             # for state in optimizer.state.values():
             #     for k, v in state.items():

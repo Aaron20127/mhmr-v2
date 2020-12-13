@@ -21,9 +21,10 @@ def main():
     torch.backends.cudnn.benchmark = opt.cuda_benchmark
     os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus
 
+    ## 2. log
     opt.logger = Logger(opt, abspath)
 
-    ## 2. train
+    ## 3. train
     trainer = HMRTrainer(opt.logger)
 
     if opt.train:

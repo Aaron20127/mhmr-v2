@@ -40,8 +40,7 @@ class HMRTrainer(object):
             model, optimizer, self.start_epoch = \
               load_model(
                   model, opt.checkpoint_path,
-                  optimizer, opt.resume,
-                  opt.lr
+                  optimizer, opt.resume
               )
 
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -100,7 +99,9 @@ class HMRTrainer(object):
 
                 average_loss.add(loss_stats)
 
-        self.logger.scalar_summary_dict(average_loss.get_average())
+        self.logger.scalar_summary_dict(average_loss.get_average(), 'val')
+        # print('val %d/%d | loss %f' % (self.epoch, opt.num_epoch,
+        #       average_loss.get_average()['loss']))
 
 
     def train_epoch(self):
@@ -114,6 +115,8 @@ class HMRTrainer(object):
         tqdm_loader.set_description('train %d/%d' % (self.epoch, opt.num_epoch))
 
         for iter_id, batch in enumerate(tqdm_loader):
+            iter_id += 1
+
             ## log id
             self.logger.update_summary_id((self.epoch-1) * len_data + iter_id)
 
@@ -129,9 +132,11 @@ class HMRTrainer(object):
             self.lr_scheduler.step(loss)
 
             ## val
-            if opt.val and opt.val_iter_interval > 0 and \
+            if opt.val_iter_interval > 0 and \
                iter_id % opt.val_iter_interval == 0:
+                tqdm_loader.set_description(' val  %d/%d' % (self.epoch, opt.num_epoch))
                 self.val()
+                tqdm_loader.set_description('train %d/%d' % (self.epoch, opt.num_epoch))
 
             ## log
             average_loss.add(loss_stats)
@@ -141,14 +146,14 @@ class HMRTrainer(object):
 
                 # no average log
                 # tqdm_loader.set_postfix(loss_stats)
-                # self.logger.scalar_summary_dict(loss_stats)
+                # self.logger.scalar_summary_dict(loss_stats, 'train')
 
                 ## epoch average log
                 tqdm_loader.set_postfix(average_loss.get_average())
                 self.logger.scalar_summary_dict(average_loss.get_average())
 
                 ## train_iter_interval average log
-                # average_loss.clear()
+                average_loss.clear()
 
             del output, loss, loss_stats
 
@@ -161,7 +166,7 @@ class HMRTrainer(object):
             self.train_epoch()
 
             # val
-            if opt.val:
+            if opt.val_epoch:
                self.val()
 
             if opt.save_epoch_interval > 0 and \

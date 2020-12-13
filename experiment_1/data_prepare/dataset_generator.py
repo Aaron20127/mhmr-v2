@@ -307,7 +307,8 @@ def get_smpl_para_combination(src_path, num_shape=2):
 
 def generate_dataset():
     ## annotation name, 'train.h5' or 'val.h5'
-    annotation_name = 'train.h5'
+    annotation_name = 'val.h5'
+    total_pose = 10
 
     ## save dir
     save_dir = os.path.join(abspath, 'dataset')
@@ -363,7 +364,7 @@ def generate_dataset():
     # shape_arr = (np.random.rand(2,10) - 0.5) * 0.06 # n x 10
     # pose_arr = np.zeros((1, 72)) # n x 72
     shape_arr, pose_arr = get_smpl_para_combination(smpl_para, num_shape=1)
-    pose_id_list, shape_id_list = generate_shape_pose_group(pose_arr[:10], shape_arr, number_person=num_person)
+    pose_id_list, shape_id_list = generate_shape_pose_group(pose_arr[:total_pose], shape_arr, number_person=num_person)
 
 
     ## generate image and annotations
