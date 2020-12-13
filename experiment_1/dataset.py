@@ -21,7 +21,7 @@ class DatasetTwoPerson(Dataset):
     def __init__(self, data_dir, split='train', max_data_len=-1):
         self.data_dir = data_dir
         self.split = split
-        self.max_data_len=-1
+        self.max_data_len=max_data_len
 
         # load data set
         self._load_data_set()
@@ -55,8 +55,8 @@ class DatasetTwoPerson(Dataset):
                 self.render_images.append(image_render_name[i].decode())
                 self.full_mask_images.append(image_full_mask_name[i].decode())
 
-                if 0 < self.max_data_len <= len(self.render_images):
-                    break
+            if self.data_len > self.max_data_len > 0:
+                self.data_len = self.max_data_len
 
         print('loaded {} samples (t={:.2f}s)'.format(self.data_len, clk.elapsed()))
 

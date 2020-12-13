@@ -37,6 +37,8 @@ class opt(object):
     num_workers = 0
     shuffle = False
     drop_last = True
+    max_train_data = -1
+    max_val_data = 5000
 
     ## preprocess
     gpus_list = [int(i) for i in gpus.split(',')]

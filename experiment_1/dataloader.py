@@ -16,7 +16,8 @@ def dataloader_train():
 
     data = DatasetTwoPerson(
         data_dir=data_dir,
-        split='train'
+        split='train',
+        max_data_len=opt.max_train_data
     )
 
     loader = DataLoader(data, batch_size=opt.batch_size,
@@ -32,7 +33,8 @@ def dataloader_val():
 
     data = DatasetTwoPerson(
         data_dir=data_dir,
-        split='val'
+        split='val',
+        max_data_len=opt.max_val_data
     )
 
     loader = DataLoader(data, batch_size=opt.batch_size,
