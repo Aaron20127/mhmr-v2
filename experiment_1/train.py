@@ -149,7 +149,7 @@ class HMRTrainer(object):
                 # self.logger.scalar_summary_dict(loss_stats, 'train')
 
                 ## epoch average log
-                tqdm_loader.set_postfix(average_loss.get_average())
+                # tqdm_loader.set_postfix(average_loss.get_average())
                 self.logger.scalar_summary_dict(average_loss.get_average())
 
                 ## train_iter_interval average log
