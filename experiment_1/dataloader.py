@@ -21,7 +21,7 @@ def dataloader_train():
         data_range=[0.0, 0.8]
     )
 
-    loader = DataLoader(data, batch_size=opt.batch_size,
+    loader = DataLoader(data, batch_size=opt.batch_size_train,
                               num_workers=opt.num_workers,
                               shuffle=opt.shuffle,
                               drop_last=opt.drop_last)
@@ -39,7 +39,7 @@ def dataloader_val():
         data_range=[0.8, 1.0]
     )
 
-    loader = DataLoader(data, batch_size=opt.batch_size,
+    loader = DataLoader(data, batch_size=opt.batch_size_val,
                               num_workers=opt.num_workers,
                               shuffle=opt.shuffle,
                               drop_last=opt.drop_last)
