@@ -16,8 +16,9 @@ def dataloader_train():
 
     data = DatasetTwoPerson(
         data_dir=data_dir,
+        annotation_name='train.h5',
         split='train',
-        max_data_len=opt.max_train_data
+        data_range=[0.0, 0.8]
     )
 
     loader = DataLoader(data, batch_size=opt.batch_size,
@@ -33,8 +34,9 @@ def dataloader_val():
 
     data = DatasetTwoPerson(
         data_dir=data_dir,
+        annotation_name='train.h5',
         split='val',
-        max_data_len=opt.max_val_data
+        data_range=[0.8, 1.0]
     )
 
     loader = DataLoader(data, batch_size=opt.batch_size,

@@ -18,10 +18,11 @@ from config import opt
 
 
 class DatasetTwoPerson(Dataset):
-    def __init__(self, data_dir, split='train', max_data_len=-1):
+    def __init__(self, data_dir, annotation_name, split='train', data_range=[0, 0.8]):
         self.data_dir = data_dir
         self.split = split
-        self.max_data_len=max_data_len
+        self.annotation_name = annotation_name
+        self.data_range = data_range
 
         # load data set
         self._load_data_set()
@@ -33,7 +34,7 @@ class DatasetTwoPerson(Dataset):
         self.render_images = []
         self.full_mask_images = []
 
-        anno_file_path = os.path.join(self.data_dir, '{}.h5'.format(self.split))
+        anno_file_path = os.path.join(self.data_dir, self.annotation_name)
 
         with h5py.File(anno_file_path, 'r') as fp:
             self.valid = np.array(fp['valid'])
@@ -55,8 +56,12 @@ class DatasetTwoPerson(Dataset):
                 self.render_images.append(image_render_name[i].decode())
                 self.full_mask_images.append(image_full_mask_name[i].decode())
 
-            if self.data_len > self.max_data_len > 0:
-                self.data_len = self.max_data_len
+        # get specific data index
+        data_range = np.arange(self.data_range[0] * self.data_len,
+                               self.data_range[1] * self.data_len).astype(np.int64)
+        self.index = self.index[data_range]
+        self.data_len = len(self.index)
+
 
         print('loaded {} samples (t={:.2f}s)'.format(self.data_len, clk.elapsed()))
 
@@ -128,17 +133,5 @@ if __name__ == '__main__':
 
     data_loader = DataLoader(data, batch_size=2, shuffle=False)
 
-    from tqdm import trange
-    from random import random, randint
-    from time import sleep
-
-    t = tqdm(data_loader)
-    for i, j in enumerate(t):
-        # 描述将显示在左边
-        t.set_description('GEN %i' % 1)
-        # 后缀将显示在右边，根据参数的数据类型自动格式化
-        t.set_postfix(loss=random(), gen=randint(1, 999), str='h',
-                      lst=[1, 2])
-        # sleep(0.1)
 
 
