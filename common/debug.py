@@ -33,20 +33,21 @@ def draw_outline_mask(src, pts):
     return dst
 
 
-def draw_mask(src, mask):
+def draw_mask(src, mask, color=(0, 255, 255)):
     """
-    @param mask(narray uint8 hxwx1): gray mask
+    @param mask(narray uint8 hxwx1 or hxwx3): mask
     """
     color_mask = np.zeros_like(src)
-    color_mask[:, :, 1] = 255
+    color_mask[:, :] = color
     color_mask = color_mask * mask
 
-    mask_src = (color_mask > 0) * src
+    mask_src = (mask > 0) * src
     mask_img = cv2.addWeighted(mask_src, 0.6, color_mask, 0.4, 0) # transparency
 
     dst = mask_img + (mask == 0) * src
 
     return dst
+
 
 def draw_bbox(src, bbox):
     dst = cv2.rectangle(src, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (255, 0, 255), 2)
