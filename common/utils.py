@@ -442,6 +442,15 @@ def conver_crowdpose_to_cocoplus(pts):
     return kps
 
 
+def save_obj(save_path, verts, faces):
+    with open(save_path, 'w') as fp:
+        for v in verts:
+            fp.write('v %f %f %f\n' % (v[0], v[1], v[2]))
+
+        for f in faces:  # Faces are 1-based, not 0-based in obj files
+            fp.write('f %d %d %d\n' % (f[0] + 1, f[1] + 1, f[2] + 1))
+
+
 def iou(boxA, boxB):
     xA = max(boxA[0], boxB[0])
     yA = max(boxA[1], boxB[1])

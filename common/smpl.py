@@ -141,10 +141,10 @@ class SMPL(nn.Module):
         joints = torch.matmul(verts.permute(0, 2, 1), self.joint_regressor.T).permute(0, 2, 1)
 
         # # rotate x
-        rx_verts = torch.matmul(verts, self.Rx.T)
-        rx_joints = torch.matmul(joints, self.Rx.T)
+        # verts = torch.matmul(verts, self.Rx.T)
+        # joints = torch.matmul(joints, self.Rx.T)
 
-        return rx_verts, rx_joints, self.faces
+        return verts, joints, self.faces
 
 
 
