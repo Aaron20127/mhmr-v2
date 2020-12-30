@@ -10,6 +10,8 @@ import numpy as np
 import tqdm
 import imageio
 
+# https://github.com/daniilidis-group/neural_renderer
+# must use pytorch 1.2.0
 import neural_renderer as nr
 
 abspath = os.path.abspath(os.path.dirname(__file__))
