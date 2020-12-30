@@ -186,7 +186,7 @@ def main():
     opt.logger = create_log(opt.exp_name)
 
     # label
-    opt.label = get_label(img_id=0, gender='male', show_label=False)
+    opt.label = get_label(img_id=0, gender=opt.gender, show_label=False)
 
     # render and camera
     opt.render = PerspectivePyrender(opt.label['intrinsic'], opt.label['pyrender_camera_pose'],
