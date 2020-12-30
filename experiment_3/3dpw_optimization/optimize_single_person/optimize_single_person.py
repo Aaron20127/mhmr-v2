@@ -88,7 +88,7 @@ def get_smpl_x(gender='female', device='cpu'):
 def create_log(exp_name):
     log_dir = os.path.join(abspath, 'output', exp_name)
     config_path = os.path.join(abspath, 'config.py')
-    return Logger(log_dir, config_path)
+    return Logger(log_dir, config_path, save_obj=True)
 
 
 def submit(logger, render, id, label, loss_dict, pre_dict):
@@ -111,6 +111,17 @@ def submit(logger, render, id, label, loss_dict, pre_dict):
                                          pre_dict['faces'], show_viewer=False)
         img_add_smpl = add_blend_smpl(color, depth > 0, label['img'].copy())
         logger.add_image('img_add_smpl_'+str(id), cv2.cvtColor(img_add_smpl, cv2.COLOR_BGR2RGB))
+
+        # add text
+        # logger.add_text("text_%s" % id, 'kp2d_weight = 0.1')
+
+        # save obj
+        logger.save_obj('%s.obj' % id, pre_dict['vertices'].detach().cpu().numpy(), pre_dict['faces'])
+
+        # add mesh
+        # logger.add_mesh('mesh_'+str(id),
+        #                  pre_dict['vertices'].detach().cpu().numpy()[np.newaxis,:],
+        #                  pre_dict['faces'][np.newaxis,:])
 
 
 def optimize(opt):
