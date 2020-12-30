@@ -391,7 +391,7 @@ def generate_data():
     # file name
     handle_file = 'courtyard_dancing_00.pkl'
     data_split = 'validation'
-    data_path = 'F:/paper/dataset/3DPW/sequenceFiles'
+    data_path = '/opt/LIWEI/datasets/3DPW/sequenceFiles'
 
     _kp2d = np.zeros((84000, 2, 18, 3))
     _kp3d = np.zeros((84000, 2, 72)) # kp3d come from smpl joint
@@ -451,7 +451,11 @@ def generate_data():
 
             print('%d / %d' % (img_id, num_frame))
 
-    dst_file = os.path.join(abspath, 'annotation', '3dpw.h5')
+
+    dst_file_dir = os.path.join(abspath, 'annotation')
+    os.makedirs(dst_file_dir, exist_ok=True)
+
+    dst_file = os.path.join(dst_file_dir, '3dpw.h5')
     dst_fp = h5py.File(dst_file, 'w')
 
     dst_fp.create_dataset('gt2d', data=_kp2d[:num_frame])

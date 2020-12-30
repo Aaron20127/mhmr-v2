@@ -93,7 +93,9 @@ def create_log(exp_name):
 
 def submit(logger, render, id, label, loss_dict, pre_dict):
     logger.update_summary_id(id)
-    logger.scalar_summary_dict(loss_dict)
+
+    if id % 9 == 0:
+        logger.scalar_summary_dict(loss_dict)
 
     if id % 499 == 0:
         # kp2d
@@ -125,9 +127,12 @@ def optimize(opt):
     shape_reg = torch.tensor(label['shape'], dtype=torch.float32).to(opt.device)
 
     ## learning parameters
-    pose_iter = torch.tensor(label['pose'], dtype=torch.float32, requires_grad=True).to(opt.device)
-    shape_iter = torch.tensor(label['shape'], dtype=torch.float32, requires_grad=True).to(opt.device)
-    transl_iter = torch.tensor(label['trans'], dtype=torch.float32, requires_grad=True).to(opt.device)
+    pose_iter = torch.tensor(label['pose'], dtype=torch.float32).to(opt.device)
+    shape_iter = torch.tensor(label['shape'], dtype=torch.float32).to(opt.device)
+    transl_iter = torch.tensor(label['trans'], dtype=torch.float32).to(opt.device)
+    pose_iter.requires_grad = True
+    shape_iter.requires_grad = True
+    transl_iter.requires_grad = True
     global_orient = pose_iter[0].view(1, -1)
     body_pose = pose_iter[1:22].view(1, -1)
 

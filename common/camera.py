@@ -64,7 +64,7 @@ class CameraPerspectiveTorch(nn.Module):
             pts(narray 3x3)
             extrinsic(narray 4x4)
         """
-        homogeneous_vertices = torch.cat((pts, torch.ones((pts.shape[0], 1))), axis=1)
+        homogeneous_vertices = torch.cat((pts, torch.ones((pts.shape[0], 1)).to(pts.device)), axis=1)
         world_2_cam = extrinsic if extrinsic is not None else self.extrinsic
         vertices_camera = torch.einsum("ij, nj->ni", world_2_cam, homogeneous_vertices)[:, :3]
 
