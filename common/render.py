@@ -9,20 +9,26 @@ import os
 
 from .utils import Rx_np
 
-class PerspectiveRender(object):
-    def __init__(self, camera_intrinsic, camera_pose, width=256, height=256):
+class PerspectivePyrender(object):
+    def __init__(self,
+                 intrinsic,
+                 camera_pose,
+                 width,
+                 height,
+                 light_intensity=40):
         self.scene = pyrender.Scene()
 
         # add camera
         camera = pyrender.camera.IntrinsicsCamera(
-                fx=camera_intrinsic[0][0], fy=camera_intrinsic[1][1],
-                cx=camera_intrinsic[0][2], cy=camera_intrinsic[1][2])
+                fx=intrinsic[0][0], fy=intrinsic[1][1],
+                cx=intrinsic[0][2], cy=intrinsic[1][2])
+
 
         self.scene.add(camera, pose=camera_pose)
 
         # add light
         light = pyrender.PointLight(color=[1.0, 1.0, 1.0],
-                                    intensity=40 * np.linalg.norm(camera_pose[:3, 3]))
+                                    intensity=light_intensity)
 
         self.scene.add(light, pose=camera_pose)
 
@@ -32,14 +38,14 @@ class PerspectiveRender(object):
                                             point_size = 1.0)
 
 
-    def run(self, mesh, show_viwer=False):
+    def render_mesh(self, mesh, show_viewer=False):
         # add mesh
         mesh_node = []
         for m in mesh:
             node = self.scene.add(m)
             mesh_node.append(node)
 
-        if show_viwer:
+        if show_viewer:
             pyrender.Viewer(self.scene, use_raymond_lighting=True)
 
         color, depth = self.r.render(self.scene)
@@ -49,6 +55,17 @@ class PerspectiveRender(object):
             self.scene.remove_node(node)
 
         return color, depth
+
+
+    def render_obj(self, vertices, faces, show_viewer=False):
+        mesh = []
+        vertex_colors = np.ones([vertices.shape[0], 4]) * [1.0, 1.0, 1.0, 1.0]
+        tri_mesh = trimesh.Trimesh(vertices, faces,
+                                   vertex_colors=vertex_colors)
+        mesh_obj = pyrender.Mesh.from_trimesh(tri_mesh)
+        mesh.append(mesh_obj)
+
+        return self.render_mesh(mesh, show_viewer)
 
 
 
@@ -111,16 +128,4 @@ def perspective_render_obj_debug(cam, obj, rotate_x_axis=True, width=512,height=
     return color, depth
 
 
-def weak_perspective_first_translate(verts, camera):
-    '''
-    对顶点做弱透视变换，只对x,y操作
-    Args:
-        verts:
-        camera: [s,cx,cy]
-    '''
-    # camera = camera.view(1, 3)
-    v = verts.detach().clone()
 
-    v[..., :2] = v[..., :2] + camera[1:]
-    v[..., :2] = v[..., :2] * camera[0]
-    return v

@@ -16,7 +16,7 @@ abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, abspath + '/../../')
 
 from common.utils import Rx_np, Ry_np, Ry_torch
-from common.render import PerspectiveRender
+from common.render import PerspectivePyrender
 from common.smpl import SMPL
 
 def generate_box_vertex_and_face(box):
@@ -98,7 +98,7 @@ def save_image(save_dir, image_render_name, image_full_mask_name, render, person
             mesh.append(mesh_obj)
 
     # render
-    render_img, depth_img = render.run(mesh, show_viwer=False)
+    render_img, depth_img = render.render_mesh(mesh, show_viwer=False)
 
     # save dir
     image_render_dir =  image_render_name.split('/')
@@ -290,7 +290,7 @@ def generate_camera(camera_init_pose, camera_intrinsic, img_height, img_width,
                     "camera_pose": camera_pose,
                     "theta_x": theta_x,
                     "theta_y": theta_y,
-                    'render': PerspectiveRender(camera_intrinsic, camera_pose,
+                    'render': PerspectivePyrender(camera_intrinsic, camera_pose,
                                                 width=img_width, height=img_height)
                 })
 
@@ -308,7 +308,7 @@ def get_smpl_para_combination(src_path, num_shape=2):
 def generate_dataset():
     ## annotation name, 'train.h5' or 'val.h5'
     annotation_name = 'train.h5'
-    total_pose = 10
+    total_pose = 20
     num_pose_sample = 1
 
     ## save dir
@@ -336,7 +336,7 @@ def generate_dataset():
     fov = 45.0
     d = 8.0
     camera_theta_x_list = [0]
-    camera_theta_y_list = [0, 90, 180, 270]
+    camera_theta_y_list = [0]
 
     tan_half = np.tan(fov / 180.0 * np.pi / 2)
     height_min = d * tan_half

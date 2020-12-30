@@ -13,6 +13,7 @@ sys.path.append(abspath + "/../../")
 import pickle
 from common.smpl import SMPL
 from common.smpl_np import SMPL_np
+from common.smpl_x import SMPL_X
 from common.render import perspective_render_obj_debug
 from common.debug import draw_kp2d
 from common.utils import save_obj
@@ -112,8 +113,8 @@ def Rz_mat(theta):
 
 
 def PW3D_visualization(save_data=False, view_data=True):
-    #
-    smpl_torch = False
+    # 'smpl_x', 'smpl_torch', 'smpl_np'
+    smpl_type = 'smpl_x'
 
     # smpl
     has_cloth = False
@@ -122,8 +123,9 @@ def PW3D_visualization(save_data=False, view_data=True):
     basic_model_m_path = 'G:\\paper\\code\\master\\data\\basicModel_m_lbs_10_207_0_v1.0.0.pkl'
     basic_model_f_path = 'G:\\paper\\code\\master\\data\\basicModel_f_lbs_10_207_0_v1.0.0.pkl'
     cocoplus_model_path = 'G:\\paper\\code\\master\\data\\neutral_smpl_with_cocoplus_reg.pkl'
+    smplx_model_path = 'G:\\paper\\code\\mhmr-v2\\data'
 
-    if smpl_torch:
+    if smpl_type == 'smpl_torch':
         device = 'cpu'
         smpl_m = SMPL(basic_model_path=basic_model_m_path,
                    cocoplus_model_path=cocoplus_model_path,
@@ -133,10 +135,13 @@ def PW3D_visualization(save_data=False, view_data=True):
                    cocoplus_model_path=cocoplus_model_path,
                    joint_type='basic').to(device)
 
-    else:
+    elif smpl_type == 'smpl_np':
         smpl_m = SMPL_np(basic_model_m_path, joint_type='smpl')
         smpl_f = SMPL_np(basic_model_f_path, joint_type='smpl')
-
+    elif smpl_type == 'smpl_x':
+        device = 'cpu'
+        smpl_m = SMPL_X(model_path=smplx_model_path, model_type='smplx', gender='male').to(device)
+        smpl_f = SMPL_X(model_path=smplx_model_path, model_type='smplx', gender='female').to(device)
 
     # file name
     # handle_file = 'courtyard_basketball_00.pkl'
@@ -211,24 +216,30 @@ def PW3D_visualization(save_data=False, view_data=True):
                 # pose = torch.from_numpy(pose).to(device).type(torch.float32)
                 # shape = torch.from_numpy(shape).to(device).type(torch.float32)
 
-                if smpl_torch:
+                if smpl_type == 'smpl_torch':
                     pose_smpl = torch.tensor(pose[i]).reshape((24,3)).to(device).float()
-                else:
+                elif smpl_type == 'smpl_np':
                     pose_smpl = pose[i].reshape((24,3))
+                elif smpl_type == 'smpl_x':
+                    pose_smpl = torch.tensor(pose[i]).reshape((24, 3)).to(device).float()
 
                 if has_cloth:
-                    if smpl_torch:
+                    if smpl_type == 'smpl_torch':
                         shape_smpl = torch.tensor(shape_clothed[i]).reshape((1, 10)).to(device).float()
                         v_template_smpl = torch.tensor(v_template_clothed[i]).to(device).float()
-                    else:
+                    elif smpl_type == 'smpl_np':
                         shape_smpl = shape_clothed[i].reshape((1, 10))
                         v_template_smpl = v_template_clothed[i]
+                    elif smpl_type == 'smpl_x':
+                        shape_smpl = torch.tensor(shape_clothed[i]).reshape((1, 10)).to(device).float()
                 else:
-                    if smpl_torch:
+                    if smpl_type == 'smpl_torch':
                         shape_smpl = torch.tensor(shape[i]).reshape((1, 10)).to(device).float()
-                    else:
+                    elif smpl_type == 'smpl_np':
                         shape_smpl = shape[i].reshape((1, 10))
-                    v_template_smpl = None
+                        v_template_smpl = None
+                    elif smpl_type == 'smpl_x':
+                        shape_smpl = torch.tensor(shape_clothed[i]).reshape((1, 10)).to(device).float()
 
                 smpl_now = smpl_m
                 basic_model_path = basic_model_m_path
@@ -236,11 +247,12 @@ def PW3D_visualization(save_data=False, view_data=True):
                     smpl_now = smpl_f
                     basic_model_path = basic_model_f_path
 
-                if smpl_torch:
+                if smpl_type == 'smpl_torch':
                     verts, joints, faces = smpl_now(shape_smpl, pose_smpl, v_template_smpl)
                     verts = verts[0]
                     J = joints[0]
-                else:
+
+                elif smpl_type == 'smpl_np':
                     smpl_now.set_params(beta=shape_smpl.flatten(),
                                         pose=pose_smpl,
                                         v_template=v_template_smpl)
@@ -249,7 +261,17 @@ def PW3D_visualization(save_data=False, view_data=True):
                     J = obj['J']
                     faces = obj['faces']
 
-                # if save_obj:
+                elif smpl_type == 'smpl_x':
+                    global_orient = pose_smpl[0].view(1,-1)
+                    body_pose = pose_smpl[1:22].view(1,-1)
+
+                    verts, J, faces = smpl_now(global_orient=global_orient,
+                                               body_pose=body_pose,
+                                               betas=shape_smpl)
+                    verts = verts.detach().cpu().numpy().squeeze()
+                    J = J.detach().cpu().numpy().squeeze()
+
+            # if save_obj:
                 #     if has_cloth:
                 #         # smpl_now.save_obj(verts[0], 'output/%s_clothed_%d_%d.obj' % (basic_model_path.split('\\')[-1],j,i))
                 #         smpl_now.save_obj('output/%s_clothed_%d_%d.obj' % (basic_model_path.split('\\')[-1],j,i))
@@ -276,7 +298,7 @@ def PW3D_visualization(save_data=False, view_data=True):
                     new_para_obj['verts'] = new_verts
 
 
-                # kp2d_project
+                # kp2d_project, kp3d come from smpl joints
                 K = cam_intrinsics
                 t = trans[i].reshape(3, 1)
                 verts_trans = kp3d[i].reshape(24, 3) # no pose trans
@@ -328,10 +350,12 @@ def PW3D_visualization(save_data=False, view_data=True):
 
             # save data
             if save_data:
-                img_kp2d_dir = os.path.join(abspath, 'output', 'kp2d')
-                img_kp2d_project_dir = os.path.join(abspath, 'output', 'kp2d_project')
-                img_add_smpl_dir = os.path.join(abspath, 'output', 'add_smpl')
-                obj_dir = os.path.join(abspath, 'output', 'obj')
+                output_dir = os.path.join(abspath, 'output', smpl_type)
+
+                img_kp2d_dir = os.path.join(output_dir, 'kp2d')
+                img_kp2d_project_dir = os.path.join(output_dir, 'kp2d_project')
+                img_add_smpl_dir = os.path.join(output_dir, 'add_smpl')
+                obj_dir = os.path.join(output_dir, 'obj')
 
                 os.makedirs(img_kp2d_dir, exist_ok=True)
                 os.makedirs(img_kp2d_project_dir, exist_ok=True)

@@ -8,7 +8,7 @@ class opt(object):
     resume = True
 
     ## log
-    exp_name = 'test_1_train_val_0-0.8-1.0'       # experiment name
+    exp_name = 'test_1'       # experiment name
     val_epoch = False
     val_iter_interval = 1000
     train_iter_interval = 10
@@ -16,7 +16,7 @@ class opt(object):
     ## train
     train = True
     seed = 223
-    gpus = '0'             # -1 cpu, 0,1,2 ... gpu
+    gpus = '-1'             # -1 cpu, 0,1,2 ... gpu
     cuda_benchmark = True   # accelerate non-dynamic networks
 
     num_epoch = 100
@@ -33,10 +33,13 @@ class opt(object):
     pose_weight = 1.0
     shape_weight = 1.0
 
-    ## dataloader
+    ## dataset and dataloader
     num_workers = 4
     shuffle = True
     drop_last = True
+
+    render_img = True
+    mask_img = False
 
     ## preprocess
     gpus_list = [int(i) for i in gpus.split(',')]
