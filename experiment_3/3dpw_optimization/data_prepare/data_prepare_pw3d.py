@@ -458,7 +458,7 @@ def generate_data():
     dst_fp.create_dataset('gt3d', data=_kp3d[:num_frame])
     dst_fp.create_dataset('shape', data=_shape[:num_frame])
     dst_fp.create_dataset('pose', data=_pose[:num_frame])
-    dst_fp.create_dataset('smpl_trans', data=_smpl_trans[:num_frame])
+    dst_fp.create_dataset('trans', data=_smpl_trans[:num_frame])
     dst_fp.create_dataset('camera_pose_valid', data=_camera_pose_valid[:num_frame])
     dst_fp.create_dataset('pose_world_2_camera', data=_pose_world_2_camera[:num_frame])
     dst_fp.create_dataset('camera_intrinsic', data=_camera_intrinsic)
