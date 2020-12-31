@@ -15,7 +15,7 @@ def l1_loss(pred, target):
 
 
 def l2_loss(pred, target):
-    loss = torch.square(pred - target).sum()
+    loss = torch.sum((pred - target)**2)
     loss = loss / (pred.numel() + 1e-16)
     return loss
 

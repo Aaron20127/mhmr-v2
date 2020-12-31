@@ -1,4 +1,5 @@
 
+import cv2
 import os
 import time
 import sys
@@ -39,7 +40,7 @@ class AverageLoss(object):
 
 
 class Logger(object):
-    def __init__(self, log_dir, config_path, save_obj=False):
+    def __init__(self, log_dir, config_path, save_obj=False, save_img=False):
         self.summary_id = 0
 
         # log dir
@@ -57,6 +58,11 @@ class Logger(object):
         if save_obj:
             self.save_obj_dir = os.path.join(self.log_dir, 'obj')
             os.makedirs(self.save_obj_dir, exist_ok=True)
+
+        # save img
+        if save_img:
+            self.save_img_dir = os.path.join(self.log_dir, 'image')
+            os.makedirs(self.save_img_dir, exist_ok=True)
 
 
     def update_summary_id(self, summary_id):
@@ -119,3 +125,11 @@ class Logger(object):
 
             for f in faces:  # Faces are 1-based, not 0-based in obj files
                 fp.write('f %d %d %d\n' % (f[0] + 1, f[1] + 1, f[2] + 1))
+
+
+    def save_image(self, name, img):
+        """ save .obj file to local dir.
+            name ("*.png") file name
+        """
+        img_path = os.path.join(self.save_img_dir, name)
+        cv2.imwrite(img_path, img)

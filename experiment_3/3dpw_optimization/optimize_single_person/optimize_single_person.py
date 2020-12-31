@@ -88,7 +88,7 @@ def get_smpl_x(gender='female', device='cpu'):
 def create_log(exp_name):
     log_dir = os.path.join(abspath, 'output', exp_name)
     config_path = os.path.join(abspath, 'config.py')
-    return Logger(log_dir, config_path, save_obj=True)
+    return Logger(log_dir, config_path, save_obj=True, save_img=True)
 
 
 def submit(logger, render, id, label, loss_dict, pre_dict):
@@ -111,6 +111,8 @@ def submit(logger, render, id, label, loss_dict, pre_dict):
                                          pre_dict['faces'], show_viewer=False)
         img_add_smpl = add_blend_smpl(color, depth > 0, label['img'].copy())
         logger.add_image('img_add_smpl_'+str(id), cv2.cvtColor(img_add_smpl, cv2.COLOR_BGR2RGB))
+
+        logger.save_image('img_add_smpl_%s.png' % str(id).zfill(5), img_add_smpl)
 
         # add text
         # logger.add_text("text_%s" % id, 'kp2d_weight = 0.1')
@@ -154,10 +156,9 @@ def optimize(opt):
         # forword
         vertices, kp3d_pre, faces = smpl(global_orient=global_orient,
                                          body_pose=body_pose,
-                                         betas=shape_iter,
-                                         transl=transl_iter)
-        vertices = vertices.squeeze(0)
-        kp3d_pre = kp3d_pre.squeeze(0)
+                                         betas=shape_iter)
+        vertices = vertices.squeeze(0) + transl_iter
+        kp3d_pre = kp3d_pre.squeeze(0) + transl_iter
 
         # loss
         kp2d_body_pre = camera.perspective(kp3d_pre[:22])
