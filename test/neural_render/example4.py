@@ -106,7 +106,7 @@ def main():
 
         cv2.imshow('img', (image*255).astype(np.uint8))
         cv2.imshow('img_ref', img_ref)
-        cv2.waitKey(100)
+        cv2.waitKey(50)
 
 
 if __name__ == '__main__':

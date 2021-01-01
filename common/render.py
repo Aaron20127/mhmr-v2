@@ -4,10 +4,51 @@ import trimesh
 import pyrender
 import torch
 import os
+import neural_renderer as nr
 
 # os.environ['PYOPENGL_PLATFORM'] = 'egl'
 
 from .utils import Rx_np
+
+# https://github.com/daniilidis-group/neural_renderer
+# must use pytorch 1.2.0
+class PerspectiveNeuralRender(object):
+    def __init__(self, K, R, t, height, width):
+        """ Neural renderer.
+            K (tensor, cuda, float32, Bx3x3) camera intrinsic
+            R (tensor, cuda, float32, Bx3x3) extrinsic
+            t (tensor, cuda, float32, Bx1x3) translation
+            height (int) output image height
+            width (int) output image width
+        """
+        self.output_size = max(height, width)
+        self.height = height
+        self.width = width
+
+        # create renderer
+        self.renderer = nr.Renderer(image_size=self.output_size,
+                                    K=K, R=R, t=t,
+                                    orig_size=self.output_size)
+
+    def render_obj(self, vertices, faces, textures):
+        """ render obj.
+            vertices (tensor, float32, BxNx3)
+            faces (tensor, int32, BxNx3)
+            textures (tensor, float32, BxNxtxtxtx3)
+        """
+        image_normal, depth, _ = self.renderer(vertices, faces, textures)
+        image_normal = image_normal.permute((0, 2, 3, 1))
+
+        image_normal = image_normal[:, :self.height, :self.width, :]
+        depth = depth[:, :self.height, :self.width]
+
+        return image_normal, depth
+
+    def render_mask(self, vertices, faces):
+        mask = self.renderer(vertices, faces, mode='silhouettes')
+        mask = mask[:, :self.height, :self.width]
+        return mask
+
 
 class PerspectivePyrender(object):
     def __init__(self,
