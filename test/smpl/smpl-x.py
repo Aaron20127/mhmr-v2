@@ -25,11 +25,13 @@ import argparse
 import numpy as np
 import torch
 
-import smplx
-
 import numpy as np
 abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(abspath + "/../../")
+
+from common import smplx
+
+
 
 
 def main(model_folder,

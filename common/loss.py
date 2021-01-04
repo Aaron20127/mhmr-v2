@@ -22,7 +22,7 @@ def l2_loss(pred, target):
 
 def mask_loss(pred, target):
     out = pred[(((1 - target) + pred) > 1)]
-    loss = 0.5 * torch.sum((pred - target)**2) + 1.0 * torch.sum(out**2)
+    loss = 0.5 * torch.sum((pred - target)**2) + 4.0 * torch.sum(out**2)
     return loss
 
 

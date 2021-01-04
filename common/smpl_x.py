@@ -193,7 +193,7 @@ import torch
 
 import torch.nn as nn
 
-import smplx
+from common import smplx
 
 import numpy as np
 abspath = os.path.abspath(os.path.dirname(__file__))
@@ -286,6 +286,14 @@ class SMPL_X(nn.Module):
             return_full_pose: bool, optional
                 Returns the full axis-angle pose vector (default=False)
         '''
+
+        if transl is not None:
+            str_v = torch.__version__.split('.')
+            version = int(str_v[0]+str_v[1])
+            if version <= 12:
+                print('error: transl parameter need pytorch > 1.2 when use backpropagation.')
+                sys.exit(0)
+
         output = self.model(betas=betas,
                             global_orient=global_orient,
                             body_pose=body_pose,

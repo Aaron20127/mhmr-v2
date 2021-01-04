@@ -27,7 +27,7 @@ import argparse
 
 import numpy as np
 
-import smplx
+from common import smplx
 import torch
 
 from common.utils import Rx_torch, Ry_torch, Rz_torch

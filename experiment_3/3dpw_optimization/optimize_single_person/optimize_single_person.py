@@ -207,6 +207,7 @@ def optimize(opt):
     body_pose = pose_iter[1:22].view(1, -1)
 
     optimizer = torch.optim.Adam((pose_iter, shape_iter, transl_iter), lr=opt.lr)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, patience=10, verbose=True)
 
     tqdm_iter = tqdm(range(opt.total_iter), leave=True)
     for it_id in tqdm_iter:
@@ -241,6 +242,7 @@ def optimize(opt):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step(loss)
 
         # submit
         tqdm_iter.set_postfix_str(s='transl_iter=(%.4f,%.4f,%.4f)' % \
