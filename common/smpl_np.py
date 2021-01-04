@@ -1,10 +1,14 @@
 import numpy as np
 import pickle
 import os
+import sys
 import cv2
 import time
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+
+abspath = os.path.abspath(os.path.dirname(__file__))
+
 
 class SMPL_np():
   def __init__(self, model_path, joint_type='smpl'):
@@ -236,40 +240,58 @@ class SMPL_np():
     }
 
 if __name__ == '__main__':
-  smpl = SMPL_np("D:/paper/human_body_reconstruction/code/master/data/neutral_smpl_with_cocoplus_reg.pkl")
+  smpl = SMPL_np(abspath + "/../data/neutral_smpl_with_cocoplus_reg.pkl", joint_type='cocoplus')
   np.random.seed(9608)
 
-  pose = (np.random.rand(*smpl.pose_shape) - 0.5) * 0.4
-  beta = (np.random.rand(*smpl.beta_shape) - 0.5) * 0.06
+  # pose = (np.random.rand(*smpl.pose_shape) - 0.5) * 0.4
+  pose = np.zeros((24, 3))
+  beta = (np.random.rand(10) - 0.5) * 0.06
 
   smpl.set_params(beta=beta, pose=pose)
 
   obj = smpl.get_obj()
 
-  ## 1.
-  fig = plt.figure()
-  ax = fig.gca(projection='3d')
-  elev = 90 + 30
-  azim = -90
-  ax.view_init(elev=elev, azim=azim)
-
-  verts = obj['verts']
+  vertices = obj['verts']
   faces = obj['faces']
+  joints = obj['J']
 
-  x = verts[:, 0]
-  y = verts[:, 1]
-  z = verts[:, 2]
+  ## show
+  import pyrender
+  import trimesh
 
-  ax.plot_trisurf(x, y, z,  triangles=faces, linewidth=0, antialiased=True)
-  ax.set_xlabel('x')
-  ax.set_ylabel('y')
-  ax.set_zlabel('z')
+  # mesh
+  vertex_colors = np.ones([vertices.shape[0], 4]) * [0.3, 0.3, 0.3, 0.8]
+  tri_mesh = trimesh.Trimesh(vertices, faces,
+                             vertex_colors=vertex_colors, )
+  mesh = pyrender.Mesh.from_trimesh(tri_mesh, wireframe=True)
+  scene = pyrender.Scene()
+  scene.add(mesh)
 
-  ax.set_xlim(-1, 1)
-  ax.set_ylim(-1, 1)
-  ax.set_zlim(-1, 1)
+  # joint
+  sm = trimesh.creation.uv_sphere(radius=0.005)
+  sm.visual.vertex_colors = [0.1, 0.1, 0.9, 1.0]
+  tfs = np.tile(np.eye(4), (len(joints), 1, 1))
+  tfs[:, :3, 3] = joints
+  joints_pcl = pyrender.Mesh.from_trimesh(sm, poses=tfs)
+  scene.add(joints_pcl)
 
-  plt.show()
+  # plot_joints_index
+  J_regressor_vertex = np.concatenate((vertices[smpl.J_cocoplus_regressor[7].nonzero()[1]],
+                                       vertices[smpl.J_cocoplus_regressor[10].nonzero()[1]],
+                                       vertices[smpl.J_cocoplus_regressor[6].nonzero()[1]],
+                                       vertices[smpl.J_cocoplus_regressor[11].nonzero()[1]],
+                                       vertices[smpl.J_cocoplus_regressor[2].nonzero()[1]],
+                                       vertices[smpl.J_cocoplus_regressor[3].nonzero()[1]],
+                                       vertices[smpl.J_cocoplus_regressor[1].nonzero()[1]],
+                                       vertices[smpl.J_cocoplus_regressor[4].nonzero()[1]],
+                                       vertices[smpl.J_cocoplus_regressor[0].nonzero()[1]],
+                                       vertices[smpl.J_cocoplus_regressor[5].nonzero()[1]]), axis=0)
+  sm = trimesh.creation.uv_sphere(radius=0.005)
+  sm.visual.vertex_colors = [0.1, 0.9, 0.1, 1.0]
+  tfs = np.tile(np.eye(4), (len(J_regressor_vertex), 1, 1))
+  tfs[:, :3, 3] = J_regressor_vertex
+  joints_pcl = pyrender.Mesh.from_trimesh(sm, poses=tfs)
+  scene.add(joints_pcl)
 
 
-
+  pyrender.Viewer(scene, use_raymond_lighting=True)

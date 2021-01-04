@@ -59,12 +59,12 @@ def main(model_folder,
         expression = torch.randn(
             [1, model.num_expression_coeffs], dtype=torch.float32)
 
-    left_hand_pose = torch.ones(1, 15, 3, 3)
-    left_hand_pose[0, 0] = Rx_torch(torch.tensor([[np.pi / 128]]))[0] # 手会出问题
+    # left_hand_pose = torch.ones(1, 15, 3, 3)
+    # left_hand_pose[0, 0] = Rx_torch(torch.tensor([[np.pi / 128]]))[0] # 手会出问题
 
     output = model(betas=betas,
                    expression=expression,
-                   left_hand_pose = left_hand_pose,
+                   left_hand_pose = None,
                    return_verts=True)
     vertices = output.vertices.detach().cpu().numpy().squeeze()
     joints = output.joints.detach().cpu().numpy().squeeze()
@@ -79,7 +79,7 @@ def main(model_folder,
         tri_mesh = trimesh.Trimesh(vertices, model.faces,
                                    vertex_colors=vertex_colors)
 
-        mesh = pyrender.Mesh.from_trimesh(tri_mesh)
+        mesh = pyrender.Mesh.from_trimesh(tri_mesh, wireframe=True)
 
         scene = pyrender.Scene()
         scene.add(mesh)
@@ -160,11 +160,11 @@ if __name__ == '__main__':
     parser.add_argument('--plot-joints', default=True,
                         type=lambda arg: arg.lower() in ['true', '1'],
                         help='The path to the model folder')
-    parser.add_argument('--sample-shape', default=True,
+    parser.add_argument('--sample-shape', default=False,
                         dest='sample_shape',
                         type=lambda arg: arg.lower() in ['true', '1'],
                         help='Sample a random shape')
-    parser.add_argument('--sample-expression', default=True,
+    parser.add_argument('--sample-expression', default=False,
                         dest='sample_expression',
                         type=lambda arg: arg.lower() in ['true', '1'],
                         help='Sample a random expression')

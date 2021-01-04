@@ -114,16 +114,16 @@ def Rz_mat(theta):
 
 def PW3D_visualization(save_data=False, view_data=True):
     # 'smpl_x', 'smpl_torch', 'smpl_np'
-    smpl_type = 'smpl_x'
+    smpl_type = 'smpl_np'
 
     # smpl
     has_cloth = False
 
     # basic_model_path = 'G:\\paper\\code\\master\\data\\basicModel_neutral_lbs_10_207_0_v1.0.0.pkl'
-    basic_model_m_path = 'G:\\paper\\code\\master\\data\\basicModel_m_lbs_10_207_0_v1.0.0.pkl'
-    basic_model_f_path = 'G:\\paper\\code\\master\\data\\basicModel_f_lbs_10_207_0_v1.0.0.pkl'
-    cocoplus_model_path = 'G:\\paper\\code\\master\\data\\neutral_smpl_with_cocoplus_reg.pkl'
-    smplx_model_path = 'G:\\paper\\code\\mhmr-v2\\data'
+    basic_model_m_path = abspath + '\\..\\..\\..\\data\\basicModel_m_lbs_10_207_0_v1.0.0.pkl'
+    basic_model_f_path = abspath + '\\..\\..\\..\\data\\basicModel_f_lbs_10_207_0_v1.0.0.pkl'
+    cocoplus_model_path = abspath + '\\..\\..\\..\\data\\neutral_smpl_with_cocoplus_reg.pkl'
+    smplx_model_path = abspath + '\\..\\..\\..\\data'
 
     if smpl_type == 'smpl_torch':
         device = 'cpu'
@@ -477,5 +477,5 @@ def generate_data():
 
 
 if __name__ == '__main__':
-    # PW3D_visualization(save_data=True, view_data=False)
-    generate_data()
+    PW3D_visualization(save_data=False, view_data=False)
+    # generate_data()

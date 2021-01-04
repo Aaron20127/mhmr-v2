@@ -60,13 +60,17 @@ def main(model_folder,
         expression = torch.randn(
             [1, model.num_expression_coeffs], dtype=torch.float32)
 
-    left_hand_pose = torch.tensor([[np.pi/2, 0, 0, 0, 0, 0]])
-    right_hand_pose = torch.tensor([[np.pi/2, 0, 0, 0, 0, 0]])
+    left_hand_pose = torch.tensor([[0, 0, 0, 0, 0, 0]], dtype=torch.float32)
+    right_hand_pose = torch.tensor([[0, 0, 0, 0, 0, 0]], dtype=torch.float32)
+    body_pose = torch.zeros((1, 63), dtype=torch.float32)
+    body_pose[0, 2] = np.pi / 4
+    body_pose[0, 5] = -np.pi / 4
 
-    output = model(betas=betas, expression=expression,
-                   left_hand_pose=left_hand_pose,
-                   right_hand_pose=right_hand_pose,
-                   return_verts=True)
+    output = model(betas=betas, expression=None,
+                          body_pose = body_pose,
+                           left_hand_pose=None,
+                           right_hand_pose=None,
+                           return_verts=True)
     vertices = output.vertices.detach().cpu().numpy().squeeze()
     joints = output.joints.detach().cpu().numpy().squeeze()
 
@@ -80,9 +84,9 @@ def main(model_folder,
         import trimesh
         vertex_colors = np.ones([vertices.shape[0], 4]) * [0.3, 0.3, 0.3, 0.8]
         tri_mesh = trimesh.Trimesh(vertices, model.faces,
-                                   vertex_colors=vertex_colors)
+                                   vertex_colors=vertex_colors, )
 
-        mesh = pyrender.Mesh.from_trimesh(tri_mesh)
+        mesh = pyrender.Mesh.from_trimesh(tri_mesh, wireframe=True)
 
         scene = pyrender.Scene()
         scene.add(mesh)
@@ -94,6 +98,23 @@ def main(model_folder,
             tfs[:, :3, 3] = joints
             joints_pcl = pyrender.Mesh.from_trimesh(sm, poses=tfs)
             scene.add(joints_pcl)
+
+
+
+        # plot_joints_index
+        J_regressor_index = {
+            'left': output.J_regressor[19].nonzero(),
+            'right': output.J_regressor[18].nonzero(),
+        }
+        J_regressor_vertex = np.concatenate((vertices[J_regressor_index['left'].flatten()],
+                                             vertices[J_regressor_index['right'].flatten()]), 0)
+        sm = trimesh.creation.uv_sphere(radius=0.005)
+        sm.visual.vertex_colors = [0.1, 0.9, 0.1, 1.0]
+        tfs = np.tile(np.eye(4), (len(J_regressor_vertex), 1, 1))
+        tfs[:, :3, 3] = J_regressor_vertex
+        joints_pcl = pyrender.Mesh.from_trimesh(sm, poses=tfs)
+        scene.add(joints_pcl)
+
 
         pyrender.Viewer(scene, use_raymond_lighting=True)
     elif plotting_module == 'matplotlib':
@@ -146,7 +167,7 @@ if __name__ == '__main__':
     parser.add_argument('--model-type', default='smplx', type=str,
                         choices=['smpl', 'smplh', 'smplx', 'mano', 'flame'],
                         help='The type of model to load')
-    parser.add_argument('--gender', type=str, default='neutral',
+    parser.add_argument('--gender', type=str, default='male',
                         help='The gender of the model')
     parser.add_argument('--num-betas', default=10, type=int,
                         dest='num_betas',
