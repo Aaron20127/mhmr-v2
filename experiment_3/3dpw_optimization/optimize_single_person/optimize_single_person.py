@@ -13,10 +13,11 @@ sys.path.append(abspath + "/../../../")
 
 from common.debug import draw_kp2d, draw_mask, add_blend_smpl
 from common.smpl_x import SMPL_X
-from common.loss import l1_loss, l2_loss, mask_loss
+from common.loss import l1_loss, l2_loss, mask_loss, part_mask_loss
 from common.log import Logger
 from common.camera import CameraPerspective, CameraPerspectiveTorch
 from common.render import PerspectivePyrender, PerspectiveNeuralRender
+from common.smpl_uv import smplx_part_label
 
 from config import opt
 
@@ -33,6 +34,11 @@ def crop_img(opt, label):
 
     img_crop = label['img'][y1:y2, x1:x2].copy()
     mask_crop = label['mask'][y1:y2, x1:x2].copy()
+    
+    part_segmentation_crop_dict = {}
+    for part_name, part_segmentation in label['part_segmentation'].items():
+        part_segmentation_crop_dict[part_name] = part_segmentation[y1:y2, x1:x2].copy()
+
     kp2d_crop = label['kp2d'] - np.array([[x1, y1]])
 
     intrinsic_crop = label['intrinsic'].copy()
@@ -49,10 +55,34 @@ def crop_img(opt, label):
     label['mask_crop'] = cv2.resize((mask_crop*255).astype(np.uint8),
                                      new_size, interpolation=cv2.INTER_CUBIC) / 255.0
 
+    part_segmentation_crop_resize_dict = {}
+
+    for part_name, part_segmentation in part_segmentation_crop_dict.items():
+        part_segmentation_crop_resize_dict[part_name] = \
+            cv2.resize((part_segmentation*255).astype(np.uint8),
+                       new_size, interpolation=cv2.INTER_CUBIC) / 255.0
+
+    label['part_segmentation_crop'] = part_segmentation_crop_resize_dict
+
     intrinsic_crop[:2] = intrinsic_crop[:2] * opt.image_scale
     label['intrinsic_crop'] = intrinsic_crop
 
     label['kp2d_crop'] = kp2d_crop * opt.image_scale
+
+    return label
+
+
+def get_part_segmentation_mask(label, gender, img_id):
+    part_dir = os.path.join(abspath, "../data_prepare/3DPW/courtyard_dancing_00_mask/part_segmentation/")
+    part_name_list = label['smplx_faces']['part_name_list']
+
+    part_segmentation_dict = {}
+    for part_name in part_name_list:
+        mask = cv2.imread(os.path.join(part_dir, str(gender), part_name,
+                                       'image_%s.png' % str(img_id).zfill(5)))
+        part_segmentation_dict[part_name] = mask[:,:,0] / 255
+
+    label['part_segmentation'] = part_segmentation_dict
 
     return label
 
@@ -104,20 +134,32 @@ def get_label(img_id=0, gender='male', show_label=False):
     label['img'] = img
     label['mask'] = mask[:,:,0] / 255
 
+    # load part segmentation
+    label['smplx_faces'] = smplx_part_label()
+    label = get_part_segmentation_mask(label, gender, img_id)
+
     # crop img
     label = crop_img(opt, label)
     label['img'] = label['img_crop']
     label['mask'] = label['mask_crop']
     label['intrinsic'] = label['intrinsic_crop']
     label['kp2d'] = label['kp2d_crop']
+    label['part_segmentation'] = label['part_segmentation_crop']
 
     # show
     if show_label:
-        I = draw_kp2d(label['img'], label['kp2d'])
+        I = draw_kp2d(label['img'].copy(), label['kp2d'])
         I = draw_mask(I, label['mask'][:, :, None], color=(0, 255, 0))
 
-        cv2.namedWindow('img', 0)
-        cv2.imshow('img', I)
+        cv2.namedWindow('mask_kp2d', 0)
+        cv2.imshow('mask_kp2d', I)
+
+        cv2.namedWindow('segmentation_mask', 0)
+        I = label['img'].copy()
+        for part_name, seg_mask in label['part_segmentation'].items():
+            I = draw_mask(I, seg_mask[:, :, None], color=(0, 255, 0))
+        cv2.imshow('segmentation_mask', I)
+
         cv2.waitKey(0)
 
     return label
@@ -170,6 +212,17 @@ def submit(opt, id, loss_dict, pre_dict):
         logger.add_image('mask_'+str(id), cv2.cvtColor(mask, cv2.COLOR_BGR2RGB))
         logger.save_image('mask_%s.png' % str(id).zfill(5), mask)
 
+        # add part mask
+        part_full_mask = np.zeros((label['mask'].shape[0], label['mask'].shape[1], 3), dtype=np.uint8)
+        for part_name, seg_mask in label['part_segmentation'].items():
+            part_full_mask = draw_mask(part_full_mask, seg_mask[:, :, None], color=(0, 255, 0))
+        # for part_mask in pre_dict['part_mask_pre']:
+        #     part_full_mask = draw_mask(part_full_mask, part_mask[:, :, None].detach().cpu().numpy(), color=(0, 0, 255))
+        part_full_mask = draw_mask(part_full_mask, pre_dict['mask_pre'][:, :, None].detach().cpu().numpy(), color=(0, 0, 255))
+        logger.add_image('part_full_mask_'+str(id), cv2.cvtColor(part_full_mask, cv2.COLOR_BGR2RGB))
+        logger.save_image('part_full_mask_%s.png' % str(id).zfill(5), part_full_mask)
+
+
         # save obj
         logger.save_obj('%s.obj' % id,
                         pre_dict['vertices'].detach().cpu().numpy()[0],
@@ -179,6 +232,46 @@ def submit(opt, id, loss_dict, pre_dict):
         # logger.add_mesh('mesh_'+str(id),
         #                  pre_dict['vertices'].detach().cpu().numpy()[np.newaxis,:],
         #                  pre_dict['faces'][np.newaxis,:])
+
+
+def dataset(opt):
+    label = opt.label
+
+    kp2d_gt = torch.tensor(label['kp2d'], dtype=torch.float32).to(opt.device)
+    pose_reg = torch.tensor(label['pose'][1:], dtype=torch.float32).to(opt.device)
+    shape_reg = torch.tensor(label['shape'], dtype=torch.float32).to(opt.device)
+
+    # mask
+    mask_gt = torch.tensor(label['mask'], dtype=torch.float32).to(opt.device)
+
+    part_mask_gt = np.zeros((len(label['smplx_faces']['part_name_list']),
+                                 label['mask'].shape[0],
+                                 label['mask'].shape[1]), dtype=np.float32)
+    for i, part_name in enumerate(label['smplx_faces']['part_name_list']):
+        part_mask_gt[i] = label['part_segmentation'][part_name]
+
+    part_mask_gt = torch.tensor(part_mask_gt, dtype=torch.float32).to(opt.device)
+    full_and_part_mask_gt = torch.cat((mask_gt.unsqueeze(0), part_mask_gt), dim=0)
+
+    # part faces
+    part_faces_gt = np.zeros((len(label['smplx_faces']['part_name_list']),
+                                  label['smplx_faces']['faces'].shape[0],
+                                  label['smplx_faces']['faces'].shape[1]), dtype=np.int32)
+    for i, part_name in enumerate(label['smplx_faces']['part_name_list']):
+        part_faces = label['smplx_faces']['smplx_part'][part_name]
+        part_faces_gt[i][:part_faces.shape[0]] = part_faces
+        part_faces_gt[i][part_faces.shape[0]:] = part_faces[0]
+    part_faces_gt = torch.tensor(part_faces_gt, dtype=torch.int32).to(opt.device)
+
+    return {
+        'kp2d': kp2d_gt,
+        'pose_reg': pose_reg,
+        'shape_reg': shape_reg,
+        'mask': mask_gt,
+        'part_mask': part_mask_gt,
+        'full_and_part_mask': full_and_part_mask_gt,
+        'part_faces': part_faces_gt
+    }
 
 
 def optimize(opt):
@@ -191,10 +284,7 @@ def optimize(opt):
     smpl = opt.smpl
 
     ## gt
-    kp2d_gt = torch.tensor(label['kp2d'], dtype=torch.float32).to(opt.device)
-    pose_reg = torch.tensor(label['pose'][1:], dtype=torch.float32).to(opt.device)
-    shape_reg = torch.tensor(label['shape'], dtype=torch.float32).to(opt.device)
-    mask_gt = torch.tensor(label['mask'], dtype=torch.float32).to(opt.device)
+    opt.dataset = dataset(opt)
 
     ## learning parameters
     pose_iter = torch.tensor(label['pose'], dtype=torch.float32).to(opt.device)
@@ -207,7 +297,7 @@ def optimize(opt):
     body_pose = pose_iter[1:22].view(1, -1)
 
     optimizer = torch.optim.Adam((pose_iter, shape_iter, transl_iter), lr=opt.lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, patience=10, verbose=True)
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, patience=10, verbose=True)
 
     tqdm_iter = tqdm(range(opt.total_iter), leave=True)
     for it_id in tqdm_iter:
@@ -218,22 +308,32 @@ def optimize(opt):
         vertices = vertices.squeeze(0) + transl_iter
         kp3d_pre = kp3d_pre.squeeze(0) + transl_iter
 
+        # kp2d pred
         kp2d_body_pre = camera.perspective(kp3d_pre[:22])
 
+        # mask and part mask pred
         vertices = camera.world_2_camera(vertices).unsqueeze(0)
         faces = torch.tensor(faces[None, :, :].astype(np.int32),
                              dtype=torch.int32).to(opt.device)
-        # texture_size = 2
-        # textures = torch.ones(1, faces.shape[1], texture_size, texture_size,
-        #                       texture_size, 3, dtype=torch.float32).to(opt.device)
-        mask_pre = neural_render.render_mask(vertices, faces)[0]
+
+        vertices_batch = vertices.expand(len(opt.dataset['full_and_part_mask']),
+                                         vertices.shape[1], vertices.shape[2])
+        faces_batch = torch.cat((faces, opt.dataset['part_faces']), dim=0)
+
+        mask_pre = []
+        for i in range(len(vertices_batch)):
+            mask_pre.append(neural_render.render_mask(vertices_batch[i].unsqueeze(0),
+                                                      faces_batch[i].unsqueeze(0)))
+        mask_pre = torch.cat(mask_pre, dim=0)
 
         # loss
-        loss_mask = mask_loss(mask_pre, mask_gt)
-        loss_kp2d = l2_loss(kp2d_body_pre, kp2d_gt)
-        loss_pose_reg = l1_loss(pose_iter[1:22], pose_reg)
-        loss_shape_reg = l1_loss(shape_iter, shape_reg)
+        loss_mask = mask_loss(mask_pre[0], opt.dataset['mask'])
+        loss_part_mask = part_mask_loss(mask_pre[1:], opt.dataset['part_mask'])
+        loss_kp2d = l2_loss(kp2d_body_pre, opt.dataset['kp2d'])
+        loss_pose_reg = l1_loss(pose_iter[1:22], opt.dataset['pose_reg'])
+        loss_shape_reg = l1_loss(shape_iter, opt.dataset['shape_reg'])
         loss =  loss_mask * opt.mask_weight + \
+                loss_part_mask * opt.part_mask_weight + \
                 loss_kp2d * opt.kp2d_weight + \
                 loss_pose_reg * opt.pose_weight + \
                 loss_shape_reg * opt.shape_weight
@@ -242,7 +342,7 @@ def optimize(opt):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        scheduler.step(loss)
+        # scheduler.step(loss)
 
         # submit
         tqdm_iter.set_postfix_str(s='transl_iter=(%.4f,%.4f,%.4f)' % \
@@ -252,13 +352,15 @@ def optimize(opt):
 
         loss_dict = {
             "loss_mask": loss_mask,
+            "loss_part_mask": loss_part_mask,
             "loss_kp2d": loss_kp2d,
             "loss_pose_reg": loss_pose_reg,
             "loss_shape_reg": loss_shape_reg,
             "loss": loss
         }
         pre_dict = {
-            "mask_pre": mask_pre,
+            "part_mask_pre": mask_pre[1:],
+            "mask_pre": mask_pre[0],
             "kp2d_body_pre": kp2d_body_pre,
             "vertices": vertices,
             "faces": faces

@@ -10,8 +10,8 @@ import numpy as np
 import matplotlib.pyplot as plt  # plt 用于显示图片
 import matplotlib.image as mpimg  # mpimg 用于读取图片
 
-from smpl_x import SMPL_X
-from utils import save_obj
+from .smpl_x import SMPL_X
+from .utils import save_obj
 
 
 abspath = os.path.abspath(os.path.dirname(__file__))
@@ -264,9 +264,9 @@ def generate_new_pose_smplx_uv_obj():
 
 
 def smplx_part_label():
-    dst_dir = os.path.join(abspath, '..\\data\\uv_map\\smplx')
+    dst_dir = os.path.join(abspath, '../data/uv_map/smplx')
 
-    with open(dst_dir + '\\smplx_part.pkl', 'rb') as f:
+    with open(dst_dir + '/smplx_part.pkl', 'rb') as f:
         part_label = pkl.load(f, encoding='iso-8859-1')
 
     return part_label

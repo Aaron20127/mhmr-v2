@@ -2,14 +2,14 @@ import torch
 
 class opt(object):
     # data preprocess
-    image_scale = 0.5
+    image_scale = 0.2
     side_expand = 20
 
     ## log
-    exp_name = 'test_6'
+    exp_name = 'test_9'
 
     ## optimize
-    total_iter = 2400
+    total_iter = 5000
     gender = 'female'
 
     ## learning rate
@@ -17,9 +17,10 @@ class opt(object):
 
     ## loss
     mask_weight = 0.1
-    kp2d_weight = 1
+    part_mask_weight = 1
+    kp2d_weight = 0.5
     pose_weight = 0.1
-    shape_weight = 0.1
+    shape_weight = 0.01
 
     ## cuda
     gpus = '0'             # -1 cpu, 0,1,2 ... gpu
