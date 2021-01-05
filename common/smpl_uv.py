@@ -106,7 +106,8 @@ def generate_body_part_from_mesh():
     output = {
         'smplx_part': smplx_part,
         'faces': smplx_label['faces'],
-        'vertices': smplx_label['vertices']
+        'vertices': smplx_label['vertices'],
+        'part_name_list': part_list
     }
     total_faces = 0
 
