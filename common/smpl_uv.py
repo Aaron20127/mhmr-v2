@@ -49,9 +49,10 @@ def generate_body_part_from_mesh():
     full_label = read_obj(smplx_path)
 
     ## get smplx vertices order
-    vertices_smplx = None
+    smplx_label = None
     with open(os.path.join(abspath, '../data/uv_map/smplx/smpl_x_new_pose_vertices.pkl'), 'rb') as f:
-        vertices_smplx = pkl.load(f, encoding='iso-8859-1')['vertices']
+        smplx_label = pkl.load(f, encoding='iso-8859-1')
+    vertices_smplx = smplx_label['vertices']
 
     ## map obj vertices order to smplx vertices order
     vert_index_map = np.zeros(full_label['vertices'].shape[0], dtype=np.int32)
@@ -60,12 +61,6 @@ def generate_body_part_from_mesh():
     tqdm_iter.set_description('vertex mapping')
     total = 0
     for i, v_obj in enumerate(tqdm_iter):
-        # for j, v_smplx in enumerate(vertices_smplx):
-        #     if v_obj.sum() == v_smplx.sum():
-        #         vert_index_map[i] = j
-        #         total += 1
-        #         break
-        # tqdm_iter.set_postfix({'total find': total})
         vert_index_map[i] = np.argmin(np.sum((v_obj[None, :] - vertices_smplx)**2, axis=1), axis=0)
 
     smplx_part = {}
@@ -106,11 +101,12 @@ def generate_body_part_from_mesh():
             #     print('did not find %s, face %s' % (part_name, face_part))
 
 
-
     ## save
     print('saving...')
     output = {
-        'smplx_part': smplx_part
+        'smplx_part': smplx_part,
+        'faces': smplx_label['faces'],
+        'vertices': smplx_label['vertices']
     }
     total_faces = 0
 
@@ -275,7 +271,28 @@ def smplx_part_label():
     return part_label
 
 
+def visualize():
+    label = smplx_part_label()
+
+    import pyrender
+    import trimesh
+
+    vertices = label['vertices']
+    for part_name, faces in label['smplx_part'].items():
+        vertex_colors = np.ones([vertices.shape[0], 4]) * [0.3, 0.3, 0.3, 0.8]
+        tri_mesh = trimesh.Trimesh(vertices, faces,
+                                   vertex_colors=vertex_colors, )
+
+        mesh = pyrender.Mesh.from_trimesh(tri_mesh, wireframe=True)
+
+        scene = pyrender.Scene()
+        scene.add(mesh)
+
+        pyrender.Viewer(scene, use_raymond_lighting=True)
+
+
 if __name__ == '__main__':
     # generate_new_pose_smplx_uv_obj()
-    generate_body_part_from_mesh()
-    label = smplx_part_label()
+    # generate_body_part_from_mesh()
+
+    visualize()
