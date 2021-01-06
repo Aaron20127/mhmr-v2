@@ -21,24 +21,24 @@ class CameraPerspective(object):
 
     def world_2_camera(self, pts, extrinsic=None):
         """
-            pts(narray 3x3)
+            pts(narray Bx3x3)
             extrinsic(narray 4x4)
         """
-        homogeneous_vertices = np.concatenate((pts, torch.ones((pts.shape[0], 1))), axis=1)
+        homogeneous_vertices = np.concatenate((pts, np.ones((pts.shape[0], pts.shape[1], 1))), axis=2)
         world_2_cam = extrinsic if extrinsic is not None else self.extrinsic
-        vertices_camera = np.einsum("ij, nj->ni", world_2_cam, homogeneous_vertices)[:, :3]
+        vertices_camera = np.einsum("ij, bnj->bni", world_2_cam, homogeneous_vertices)[:, :, :3]
 
         return vertices_camera
 
 
     def perspective(self, pts, extrinsic=None):
         """
-            pts(narray 3x3)
+            pts(narray Bx3x3)
             extrinsic(narray 4x4)
         """
         vertices_camera = self.world_2_camera(pts, extrinsic=extrinsic)
-        vertices_normal = vertices_camera / vertices_camera[:, 2].reshape(vertices_camera.shape[0], 1)
-        kp2d_projection = np.einsum("ij, nj->ni", self.intrinsic, vertices_normal)[:,:2]
+        vertices_normal = vertices_camera / vertices_camera[:, :, 2][:, :, None]
+        kp2d_projection = np.einsum("ij, bnj->bni", self.intrinsic, vertices_normal)[:, :, :2]
 
         return kp2d_projection
 
@@ -61,23 +61,23 @@ class CameraPerspectiveTorch(nn.Module):
 
     def world_2_camera(self, pts, extrinsic=None):
         """
-            pts(narray 3x3)
-            extrinsic(narray 4x4)
+            pts(narray Bx3x3)
+            extrinsic(narray Bx4x4)
         """
-        homogeneous_vertices = torch.cat((pts, torch.ones((pts.shape[0], 1)).to(pts.device)), axis=1)
+        homogeneous_vertices = torch.cat((pts, torch.ones((pts.shape[0], pts.shape[1], 1)).to(pts.device)), axis=2)
         world_2_cam = extrinsic if extrinsic is not None else self.extrinsic
-        vertices_camera = torch.einsum("ij, nj->ni", world_2_cam, homogeneous_vertices)[:, :3]
+        vertices_camera = torch.einsum("ij, bnj->bni", world_2_cam, homogeneous_vertices)[:, :, :3]
 
         return vertices_camera
 
 
     def perspective(self, pts, extrinsic=None):
         """
-            pts(tensor 3x3)
-            extrinsic(tensor 4x4)
+            pts(tensor BX3x3)
+            extrinsic(tensor Bx4x4)
         """
         vertices_camera = self.world_2_camera(pts, extrinsic=extrinsic)
-        vertices_normal = vertices_camera / vertices_camera[:, 2].reshape(vertices_camera.shape[0], 1)
-        kp2d_projection = torch.einsum("ij, nj->ni", self.intrinsic, vertices_normal)[:,:2]
+        vertices_normal = vertices_camera / vertices_camera[:, :, 2][:, :, None]
+        kp2d_projection = torch.einsum("ij, bnj->bni", self.intrinsic, vertices_normal)[:, :, :2]
 
         return kp2d_projection

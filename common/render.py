@@ -30,12 +30,18 @@ class PerspectiveNeuralRender(object):
                                     K=K, R=R, t=t,
                                     orig_size=self.output_size)
 
-    def render_obj(self, vertices, faces, textures):
+    def render_obj(self, vertices, faces, textures=None):
         """ render obj.
             vertices (tensor, float32, BxNx3)
             faces (tensor, int32, BxNx3)
             textures (tensor, float32, BxNxtxtxtx3)
         """
+        if textures is None:
+            texture_size = 2
+            textures = torch.ones(1, faces.shape[1], texture_size,
+                                       texture_size, texture_size, 3,
+                                       dtype=torch.float32).cuda()
+
         image_normal, depth, _ = self.renderer(vertices, faces, textures)
         image_normal = image_normal.permute((0, 2, 3, 1))
 
