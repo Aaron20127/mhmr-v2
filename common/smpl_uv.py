@@ -34,6 +34,10 @@ def generate_body_part_from_mesh():
     smplx_path = os.path.join(dst_dir, "smplx_new_pose_uv.obj")
 
     part_list = [
+        'arm_right_big',
+        'arm_right_little',
+        'body_middle_back_left',
+        'body_middle_back_right',
         'left_leg',
         'right_leg',
         'left_foot',
