@@ -113,6 +113,7 @@ def get_label(img_id=0, visualize=False):
 
         label["shape"] = shape[img_id].reshape(2, 1, -1)
         label["pose"] = pose[img_id].reshape(2, -1, 3)[:, :22, :]
+        label["kp2d"] = gt2d[img_id].reshape(2, -1, 3)
         label["smpl_kp3d"] = gt3d[img_id].reshape(2, -1, 3)[:22]
         label["trans"] = trans[img_id].reshape(2, -1, 3)
         label["extrinsic"] = pose_world_2_camera[img_id]
@@ -123,8 +124,9 @@ def get_label(img_id=0, visualize=False):
     # t = label["trans"].reshape(1, 3) # noly smpl need trans
     kp3d = label["smpl_kp3d"]
 
-    label['kp2d'] = CameraPerspective(intrinsic=label["intrinsic"],
-                                      extrinsic=label["extrinsic"]).perspective(kp3d)
+    label['smpl_kp2d'] = CameraPerspective(intrinsic=label["intrinsic"],
+                                           extrinsic=label["extrinsic"]).perspective(kp3d)
+    label["kp2d"] = label['smpl_kp2d']  # TODO joint combine
 
     # load img and mask
     dst_dir = os.path.join(abspath, "../data_prepare/3DPW")

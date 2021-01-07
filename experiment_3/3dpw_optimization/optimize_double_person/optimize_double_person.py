@@ -12,7 +12,7 @@ abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(abspath + "/../../../")
 
 from common.debug import draw_kp2d, draw_mask, add_blend_smpl
-from common.loss import l1_loss, l2_loss, mask_loss, part_mask_loss
+from common.loss import l1_loss, l2_loss, mask_loss, part_mask_loss, smpl_collision_loss
 from common.camera import CameraPerspective, CameraPerspectiveTorch
 from common.render import PerspectivePyrender, PerspectiveNeuralRender
 
@@ -29,10 +29,10 @@ def submit(opt, id, loss_dict, pre_dict):
 
     opt.logger.update_summary_id(id)
 
-    if id % 9 == 0:
+    if id % opt.sub_scalar_iter == 0:
         logger.scalar_summary_dict(loss_dict)
 
-    if id % 299 == 0:
+    if id % opt.sub_other_iter == 0:
         # kp2d
         img_kp2d = label['img'].copy()
         for i in range(len(label['kp2d'])):
@@ -56,11 +56,12 @@ def submit(opt, id, loss_dict, pre_dict):
         logger.save_image('img_add_smpl_%s.png' % str(id).zfill(5), img_add_smpl)
 
         # add mask
-        mask = np.zeros((label['mask'].shape[0], label['mask'].shape[1], 3), dtype=np.uint8)
-        mask = draw_mask(mask, label['mask'][:, :, None], color=(0, 255, 0))
-        mask = draw_mask(mask, pre_dict['mask_pre'][0][:, :, None].detach().cpu().numpy(), color=(0, 0, 255))
-        logger.add_image('mask_'+str(id), cv2.cvtColor(mask, cv2.COLOR_BGR2RGB))
-        logger.save_image('mask_%s.png' % str(id).zfill(5), mask)
+        if 'mask_pre' in pre_dict:
+            mask = np.zeros((label['mask'].shape[0], label['mask'].shape[1], 3), dtype=np.uint8)
+            mask = draw_mask(mask, label['mask'][:, :, None], color=(0, 255, 0))
+            mask = draw_mask(mask, pre_dict['mask_pre'][0][:, :, None].detach().cpu().numpy(), color=(0, 0, 255))
+            logger.add_image('mask_'+str(id), cv2.cvtColor(mask, cv2.COLOR_BGR2RGB))
+            logger.save_image('mask_%s.png' % str(id).zfill(5), mask)
 
         # add part mask
         # part_full_mask = np.zeros((label['mask'].shape[0], label['mask'].shape[1], 3), dtype=np.uint8)
@@ -139,7 +140,7 @@ def optimize(opt):
     neural_render = opt.neural_render
     smpl_male = opt.smpl_male
     smpl_female = opt.smpl_female
-    smpl_neutral = opt.smpl_neutral
+    # smpl_neutral = opt.smpl_neutral
 
     ## gt
     opt.dataset = dataset(opt)
@@ -189,22 +190,37 @@ def optimize(opt):
         vertices_batch = camera.world_2_camera(vertices_batch)
         vertices_two_person = torch.cat((vertices_batch[0], vertices_batch[1]), dim=0)[None, ...]
         faces_two_person = torch.cat((faces_batch[0], faces_batch[1] + len(vertices_batch[0])), dim=0)[None, ...]
-        image_normal, depth = neural_render.render_obj(vertices_two_person,
-                                                       faces_two_person, None)
-        mask_pre = neural_render.render_mask(vertices_two_person,
-                                                   faces_two_person)
+        # image_normal, depth = neural_render.render_obj(vertices_two_person,
+        #                                                faces_two_person, None)
+        if opt.mask_weight != 0:
+            mask_pre = neural_render.render_mask(vertices_two_person,
+                                                 faces_two_person)
 
         # loss
-        loss_mask = mask_loss(mask_pre, opt.dataset['mask'])
+        if opt.mask_weight != 0:
+            loss_mask = mask_loss(mask_pre, opt.dataset['mask'])
+        else:
+            loss_mask = torch.tensor([0.0]).to(opt.device)
+
         # loss_part_mask = part_mask_loss(mask_pre[1:], opt.dataset['part_mask'])
-        loss_kp2d = l2_loss(kp2d_body_pre[:, :22], opt.dataset['kp2d'][:, :22])
+        loss_kp2d = l2_loss(kp2d_body_pre[:, :15], opt.dataset['kp2d'][:, :15]) + \
+                    l2_loss(kp2d_body_pre[:, 16:22], opt.dataset['kp2d'][:, 16:22])
         loss_pose_reg = l1_loss(pose_iter[:, 1:22], opt.dataset['pose_reg'][:, 1:22])
         loss_shape_reg = l1_loss(shape_iter, opt.dataset['shape_reg'])
+        loss_collision = smpl_collision_loss(vertices_batch, faces_batch[0])
 
-        loss =  loss_mask * opt.mask_weight +\
-                loss_kp2d * opt.kp2d_weight + \
-                loss_pose_reg * opt.pose_weight + \
-                loss_shape_reg * opt.shape_weight
+
+        loss_mask = loss_mask * opt.mask_weight
+        loss_kp2d = loss_kp2d * opt.kp2d_weight
+        loss_pose_reg = loss_pose_reg * opt.pose_weight
+        loss_shape_reg = loss_shape_reg * opt.shape_weight
+        loss_collision = loss_collision * opt.collision_weight
+
+        loss =  loss_mask +\
+                loss_kp2d + \
+                loss_pose_reg + \
+                loss_shape_reg + \
+                loss_collision
 
         # update grad
         optimizer.zero_grad()
@@ -227,11 +243,12 @@ def optimize(opt):
             "loss_kp2d": loss_kp2d,
             "loss_pose_reg": loss_pose_reg,
             "loss_shape_reg": loss_shape_reg,
+            "loss_collision": loss_collision,
             "loss": loss
         }
         pre_dict = {
             # "part_mask_pre": mask_pre[1:],
-            "mask_pre": mask_pre,
+            # "mask_pre": mask_pre,
             "kp2d_body_pre": kp2d_body_pre[:, :22, :],
             "vertices": vertices_two_person,
             "faces": faces_two_person
@@ -262,7 +279,7 @@ def main():
     # smplx
     opt.smpl_male = get_smpl_x(gender='male', device=opt.device)
     opt.smpl_female = get_smpl_x(gender='female', device=opt.device)
-    opt.smpl_neutral = get_smpl_x(gender='neutral', device=opt.device)
+    # opt.smpl_neutral = get_smpl_x(gender='neutral', device=opt.device)
 
     # optimize
     optimize(opt)

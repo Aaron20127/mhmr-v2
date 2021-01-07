@@ -3,10 +3,12 @@ import torch
 class opt(object):
     # data preprocess
     image_scale = 0.2
-    side_expand = 20
+    side_expand = 10
 
     ## log
-    exp_name = 'test_5'
+    exp_name = 'test_10'
+    sub_scalar_iter = 2
+    sub_other_iter = 10
 
     ## optimize
     total_iter = 2400
@@ -15,11 +17,18 @@ class opt(object):
     lr = 10e-4
 
     ## loss
-    mask_weight = 1
-    part_mask_weight = 1
+    mask_weight = 0
+    part_mask_weight = 0
     kp2d_weight = 0.5
-    pose_weight = 70
-    shape_weight = 0.001
+    pose_weight = 1
+    shape_weight = 0.01
+    collision_weight = 10
+    # mask_weight = 1
+    # part_mask_weight = 1
+    # kp2d_weight = 0.5
+    # pose_weight = 100
+    # shape_weight = 0.001
+    # collision_weight = 100
 
     ## cuda
     gpus = '0'             # -1 cpu, 0,1,2 ... gpu

@@ -120,10 +120,10 @@ def PW3D_visualization(save_data=False, view_data=True):
     has_cloth = False
 
     # basic_model_path = 'G:\\paper\\code\\master\\data\\basicModel_neutral_lbs_10_207_0_v1.0.0.pkl'
-    basic_model_m_path = abspath + '\\..\\..\\..\\data\\basicModel_m_lbs_10_207_0_v1.0.0.pkl'
-    basic_model_f_path = abspath + '\\..\\..\\..\\data\\basicModel_f_lbs_10_207_0_v1.0.0.pkl'
-    cocoplus_model_path = abspath + '\\..\\..\\..\\data\\neutral_smpl_with_cocoplus_reg.pkl'
-    smplx_model_path = abspath + '\\..\\..\\..\\data'
+    basic_model_m_path = abspath + '/../../../data/basicModel_m_lbs_10_207_0_v1.0.0.pkl'
+    basic_model_f_path = abspath + '/../../../data/basicModel_f_lbs_10_207_0_v1.0.0.pkl'
+    cocoplus_model_path = abspath + '/../../../data/neutral_smpl_with_cocoplus_reg.pkl'
+    smplx_model_path = abspath + '/../../../data'
 
     if smpl_type == 'smpl_torch':
         device = 'cpu'
@@ -148,7 +148,7 @@ def PW3D_visualization(save_data=False, view_data=True):
     # data_split = 'train'
     handle_file = 'courtyard_dancing_00.pkl'
     data_split = 'validation'
-    data_path = 'F:/paper/dataset/3DPW/sequenceFiles'
+    data_path = '/opt/LIWEI/datasets/3DPW/sequenceFiles'
 
 
     filename = os.path.join(data_path, data_split, handle_file)
@@ -170,7 +170,7 @@ def PW3D_visualization(save_data=False, view_data=True):
         num_frames = len(smpl_pose[0])
         seq_name = str(data['sequence'])
         img_names = np.array(
-            ['F:/paper/dataset/3DPW/imageFiles/' + seq_name + '/image_%s.jpg' % str(i).zfill(5) for i in range(num_frames)])
+            ['/opt/LIWEI/datasets/3DPW/imageFiles/' + seq_name + '/image_%s.jpg' % str(i).zfill(5) for i in range(num_frames)])
         trans_data = data['trans']
         cam_intrinsics = data['cam_intrinsics']
 
@@ -282,20 +282,25 @@ def PW3D_visualization(save_data=False, view_data=True):
                 t = trans[i].reshape(3, 1)
 
                 verts_trans = verts + t.reshape(1, 3)
-
                 homogeneous_vertices = np.concatenate((verts_trans, np.ones((verts_trans.shape[0], 1))), axis=1)
                 verts_camera = np.einsum("ij, nj->ni", world_2_cam, homogeneous_vertices)[:, :3]
-
                 new_verts = verts_camera
+
+                J_verts_trans = J + t.reshape(1, 3)
+                J_homogeneous_vertices = np.concatenate((J_verts_trans, np.ones((J_verts_trans.shape[0], 1))), axis=1)
+                J_verts_camera = np.einsum("ij, nj->ni", world_2_cam, J_homogeneous_vertices)[:, :3]
 
 
                 # add mesh
                 if new_para_obj:
                     new_para_obj['faces'] = np.concatenate((new_para_obj['faces'], faces + len(new_para_obj['verts'])), axis=0)
                     new_para_obj['verts'] = np.concatenate((new_para_obj['verts'], new_verts), axis=0)
+                    new_para_obj['J'] = np.concatenate((new_para_obj['J'], J_verts_camera), axis=0)
                 else:
                     new_para_obj['faces'] = faces
                     new_para_obj['verts'] = new_verts
+                    new_para_obj['J'] = J_verts_camera
+
 
 
                 # kp2d_project, kp3d come from smpl joints
@@ -324,22 +329,31 @@ def PW3D_visualization(save_data=False, view_data=True):
 
             # get mesh
             mesh = []
-            vertex_colors = np.ones([new_para_obj['verts'].shape[0], 4]) * [1.0, 1.0, 1.0, 1.0]
+            vertex_colors = np.ones([new_para_obj['verts'].shape[0], 4]) * [1.0, 1.0, 1.0, 0.5]
             tri_mesh = trimesh.Trimesh(new_para_obj['verts'], new_para_obj['faces'],
                                        vertex_colors=vertex_colors)
             mesh_obj = pyrender.Mesh.from_trimesh(tri_mesh)
             mesh.append(mesh_obj)
 
+            # joints
+            sm = trimesh.creation.uv_sphere(radius=0.005)
+            sm.visual.vertex_colors = [0.1, 0.1, 0.9, 1.0]
+            tfs = np.tile(np.eye(4), (len(new_para_obj['J']), 1, 1))
+            tfs[:, :3, 3] = new_para_obj['J']
+            joints_obj = pyrender.Mesh.from_trimesh(sm, poses=tfs)
+            mesh.append(joints_obj)
+
+
             # render
             color, depth = perspective_render_obj(camera_pose, cam_intrinsics, mesh, width=img.shape[1],
-                                                  height=img.shape[0], show_viwer=False)
+                                                  height=img.shape[0], show_viwer=True)
             img_add_smpl = add_blend_smpl(color, depth>0, img)
 
 
             # draw 2d joint
             img_kp2d = img.copy()
             for p in kp2d:
-                img_kp2d = draw_kp2d(img_kp2d, p, draw_conf=True, draw_num=False)
+                img_kp2d = draw_kp2d(img_kp2d, p, draw_conf=False, draw_num=True)
 
 
             # draw 2d project joint
@@ -477,5 +491,5 @@ def generate_data():
 
 
 if __name__ == '__main__':
-    PW3D_visualization(save_data=False, view_data=False)
+    PW3D_visualization(save_data=False, view_data=True)
     # generate_data()
