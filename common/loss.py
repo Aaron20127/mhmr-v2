@@ -38,10 +38,12 @@ def part_mask_loss(pred, target):
 def smpl_collision_loss(vertices_batch, faces):
     face_len = faces.shape[0]
     vertices_len = vertices_batch[0].shape[0]
+    vertices_a = vertices_batch[0]
+    vertices_b = vertices_batch[1]
 
-    faces_b_vertices = vertices_batch[1][faces.flatten().type(torch.long)].view(face_len, 3, 3).cpu()
+    faces_b_vertices = vertices_a[faces.flatten().type(torch.long)].view(face_len, 3, 3).cpu()
 
-    vector = vertices_batch[0].unsqueeze(1).cpu() - \
+    vector = vertices_b.unsqueeze(1).cpu() - \
              torch.mean(faces_b_vertices, dim=1, keepdim=True).permute(1, 0, 2).\
              expand(vertices_len, face_len, 3)
     vector_distance = torch.sqrt(torch.sum(vector**2, dim=2))
