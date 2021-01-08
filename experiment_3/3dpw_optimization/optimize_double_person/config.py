@@ -6,7 +6,7 @@ class opt(object):
     side_expand = 10
 
     ## log
-    exp_name = 'test_10'
+    exp_name = 'test_24'
     sub_scalar_iter = 2
     sub_other_iter = 10
 
@@ -17,12 +17,15 @@ class opt(object):
     lr = 10e-4
 
     ## loss
+    num_sample_touch_face = 10  # for touch loss
+
     mask_weight = 0
     part_mask_weight = 0
-    kp2d_weight = 0.5
-    pose_weight = 1
+    kp2d_weight = 0
+    pose_weight = 0.0001
     shape_weight = 0.01
-    collision_weight = 10
+    collision_weight = 0.003
+    touch_weight = 1
     # mask_weight = 1
     # part_mask_weight = 1
     # kp2d_weight = 0.5

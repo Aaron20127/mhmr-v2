@@ -12,7 +12,7 @@ abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(abspath + "/../../../")
 
 from common.debug import draw_kp2d, draw_mask, add_blend_smpl
-from common.loss import l1_loss, l2_loss, mask_loss, part_mask_loss, smpl_collision_loss
+from common.loss import l1_loss, l2_loss, mask_loss, part_mask_loss, smpl_collision_loss, touch_loss
 from common.camera import CameraPerspective, CameraPerspectiveTorch
 from common.render import PerspectivePyrender, PerspectiveNeuralRender
 
@@ -117,6 +117,22 @@ def dataset(opt):
         part_faces_gt[i][part_faces.shape[0]:] = part_faces[0]
     part_faces_gt = torch.tensor(part_faces_gt, dtype=torch.int32).to(opt.device)
 
+    # torch pair
+    touch_pair_list = []
+    touch_pair_list.append({
+        0: torch.tensor(label['smplx_faces']['smplx_part']['body_middle_back_left'].astype(np.int64), dtype=torch.int64),
+        1: torch.tensor(label['smplx_faces']['smplx_part']['right_hand'].astype(np.int64), dtype=torch.int64)
+    })
+    # touch_pair_list.append({
+    #     0: torch.tensor(label['smplx_faces']['smplx_part']['right_hand'].astype(np.int64), dtype=torch.int64),
+    #     1: torch.tensor(label['smplx_faces']['smplx_part']['left_hand'].astype(np.int64), dtype=torch.int64)
+    # })
+    # touch_pair_list.append({
+    #     0: torch.tensor(label['smplx_faces']['smplx_part']['left_hand'].astype(np.int64), dtype=torch.int64),
+    #     1: torch.tensor(label['smplx_faces']['smplx_part']['arm_right_big'].astype(np.int64), dtype=torch.int64)
+    # })
+
+
     return {
         'kp2d': kp2d_gt,
         'pose_reg': pose_reg,
@@ -126,7 +142,8 @@ def dataset(opt):
         'instance_b': instance_b_gt,
         # 'part_mask': part_mask_gt,
         # 'full_and_part_mask': full_and_part_mask_gt,
-        'part_faces': part_faces_gt
+        'part_faces': part_faces_gt,
+        'touch_pair_list': touch_pair_list
     }
 
 
@@ -159,6 +176,7 @@ def optimize(opt):
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, patience=10, verbose=True)
 
     tqdm_iter = tqdm(range(opt.total_iter), leave=True)
+    tqdm_iter.set_description(opt.exp_name)
     for it_id in tqdm_iter:
         # forword
         vertices_batch = []
@@ -208,6 +226,7 @@ def optimize(opt):
         loss_pose_reg = l1_loss(pose_iter[:, 1:22], opt.dataset['pose_reg'][:, 1:22])
         loss_shape_reg = l1_loss(shape_iter, opt.dataset['shape_reg'])
         loss_collision = smpl_collision_loss(vertices_batch, faces_batch[0])
+        loss_touch = touch_loss(opt, vertices_batch, faces_batch[0])
 
 
         loss_mask = loss_mask * opt.mask_weight
@@ -215,12 +234,14 @@ def optimize(opt):
         loss_pose_reg = loss_pose_reg * opt.pose_weight
         loss_shape_reg = loss_shape_reg * opt.shape_weight
         loss_collision = loss_collision * opt.collision_weight
+        loss_touch = loss_touch * opt.touch_weight
 
         loss =  loss_mask +\
                 loss_kp2d + \
                 loss_pose_reg + \
                 loss_shape_reg + \
-                loss_collision
+                loss_collision + \
+                loss_touch
 
         # update grad
         optimizer.zero_grad()
@@ -244,6 +265,7 @@ def optimize(opt):
             "loss_pose_reg": loss_pose_reg,
             "loss_shape_reg": loss_shape_reg,
             "loss_collision": loss_collision,
+            "loss_touch": loss_touch,
             "loss": loss
         }
         pre_dict = {
@@ -253,6 +275,9 @@ def optimize(opt):
             "vertices": vertices_two_person,
             "faces": faces_two_person
         }
+
+        if opt.mask_weight != 0:
+            pre_dict["mask_pre"] = mask_pre
 
         submit(opt, it_id, loss_dict, pre_dict)
 
