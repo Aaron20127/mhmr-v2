@@ -226,7 +226,7 @@ def optimize(opt):
         loss_pose_reg = l1_loss(pose_iter[:, 1:22], opt.dataset['pose_reg'][:, 1:22])
         loss_shape_reg = l1_loss(shape_iter, opt.dataset['shape_reg'])
         loss_collision = smpl_collision_loss(vertices_batch, faces_batch[0])
-        loss_touch = touch_loss(opt, vertices_batch, faces_batch[0])
+        loss_touch = touch_loss(opt, vertices_batch)
 
 
         loss_mask = loss_mask * opt.mask_weight

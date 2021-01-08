@@ -36,37 +36,57 @@ def part_mask_loss(pred, target):
     return loss
 
 
+def _smpl_collision_loss(vertices_a, vertices_center_b, normal_b):
+    # min distance index
+    va_2_vb_center = vertices_a.unsqueeze(1) - \
+                     vertices_center_b.unsqueeze(0). \
+                         expand(vertices_a.shape[0], vertices_center_b.shape[0], vertices_center_b.shape[1])
+    min_distance_index = torch.argmin(torch.norm(va_2_vb_center, dim=2), dim=1)
+
+    # matching face_center and normal
+    vertices_center_b = vertices_center_b[min_distance_index]
+    normal_b = normal_b[min_distance_index]
+
+    # points index of a in b
+    va_2_vb_center = vertices_a - vertices_center_b
+    inner_index = ((va_2_vb_center * normal_b).sum(dim=1) < 0)
+
+    loss = torch.tensor(0.).cuda()
+    if inner_index.sum() > 0:
+        loss = torch.norm(va_2_vb_center[inner_index], dim=1).mean()
+
+    return loss
+
+
 def smpl_collision_loss(vertices_batch, faces):
-    face_len = faces.shape[0]
-    vertices_len = vertices_batch[0].shape[0]
-    vertices_a = vertices_batch[0].cpu()
-    vertices_b = vertices_batch[1].cpu()
 
-    faces_b_vertices = vertices_a[faces.flatten().type(torch.long)].view(face_len, 3, 3)
+    vertices_center_list = []
+    faces_normal_list = []
+    # vertices_center_sample_list = []
+    # faces_normal_sample_list = []
+    for i, vertices in enumerate(vertices_batch):
+        # all faces
+        faces_vertices = vertices_batch[i][faces.flatten().type(torch.long)].view(-1, 3, 3)
+        vertices_center = faces_vertices.mean(dim=1)
+        faces_normal = torch.cross(faces_vertices[:, 1, :] - faces_vertices[:, 0, :],
+                                   faces_vertices[:, 2, :] - faces_vertices[:, 1, :], dim=1)
+        vertices_center_list.append(vertices_center)
+        faces_normal_list.append(faces_normal)
 
-    vector = vertices_b.unsqueeze(1) - \
-             torch.mean(faces_b_vertices, dim=1, keepdim=True).permute(1, 0, 2).\
-             expand(vertices_len, face_len, 3)
-    vector_distance = torch.sqrt(torch.sum(vector**2, dim=2))
-    min_vector_distance_index = torch.argmin(vector_distance, dim=1)
+    # a in b
+    vertices_a = vertices_batch[1]
+    vertices_center_b = vertices_center_list[0]
+    normal_b = faces_normal_list[0]
+    loss = _smpl_collision_loss(vertices_a, vertices_center_b, normal_b)
 
-    # cuda to cpu
-    # faces_b_vertices = faces_b_vertices.cuda()
-    # vector = vector.cuda()
-    # vector_distance = vector_distance.cuda()
-    # min_vector_distance_index = min_vector_distance_index.cuda()
+    # b in a
+    vertices_a = vertices_batch[0]
+    vertices_center_b = vertices_center_list[1]
+    normal_b = faces_normal_list[1]
+    loss += _smpl_collision_loss(vertices_a, vertices_center_b, normal_b)
 
-    faces_b_vertices = faces_b_vertices[min_vector_distance_index]
-    vector = vector.gather(1, min_vector_distance_index.view(vertices_len,1,1).expand(vertices_len,1,3)).squeeze(1)
-    vector_distance = vector_distance.gather(1, min_vector_distance_index.view(vertices_len,1)).squeeze(1)
-    # torch.cuda.empty_cache()
+    return loss
 
-    faces_b_normal = torch.cross(faces_b_vertices[:, 1, :] - faces_b_vertices[:, 0, :],
-                                 faces_b_vertices[:, 2, :] - faces_b_vertices[:, 1, :], dim=1)
-    loss_index = (torch.sum(faces_b_normal * vector, dim=1) < 0)
-    loss = vector_distance[loss_index].sum()
-
-    return loss.cuda()
 
 
 def _touch_loss(vertices_a, vertices_b, normal_a, normal_b):
@@ -84,12 +104,13 @@ def _touch_loss(vertices_a, vertices_b, normal_a, normal_b):
     # loss normal
     loss_normal = ((normal_a * normal_b).sum(dim=1) + 1.0).mean()
 
-    return loss_distance + loss_normal
+    loss = (loss_distance + loss_normal) / 2.0
+
+    return loss
 
 
-def touch_loss(opt, vertices_batch, faces):
+def touch_loss(opt, vertices_batch):
 
-    loss = torch.tensor([0.0]).to(opt.device)
     for touch_part in opt.dataset['touch_pair_list']:
         # faces center and normal
         vertices_center_list = []
@@ -104,7 +125,7 @@ def touch_loss(opt, vertices_batch, faces):
             vertices_faces = vertices_batch[i][face_sample.flatten()].view(-1, 3, 3)
             vertices_center = vertices_faces.mean(dim=1)
             faces_normal = torch.cross(vertices_faces[:, 1, :] - vertices_faces[:, 0, :],
-                                        vertices_faces[:, 2, :] - vertices_faces[:, 1, :], dim=1)
+                                       vertices_faces[:, 2, :] - vertices_faces[:, 1, :], dim=1)
 
             vertices_center_sample_list.append(vertices_center)
             faces_normal_sample_list.append(faces_normal)
@@ -122,7 +143,7 @@ def touch_loss(opt, vertices_batch, faces):
         normal_a = faces_normal_sample_list[0]
         vertices_b = vertices_center_list[1]
         normal_b = faces_normal_list[1]
-        loss += _touch_loss(vertices_a, vertices_b, normal_a, normal_b)
+        loss = _touch_loss(vertices_a, vertices_b, normal_a, normal_b)
 
         vertices_a = vertices_center_sample_list[1]
         normal_a = faces_normal_sample_list[1]
