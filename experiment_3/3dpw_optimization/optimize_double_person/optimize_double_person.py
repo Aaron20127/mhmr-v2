@@ -123,14 +123,14 @@ def dataset(opt):
         0: torch.tensor(label['smplx_faces']['smplx_part']['body_middle_back_left'].astype(np.int64), dtype=torch.int64),
         1: torch.tensor(label['smplx_faces']['smplx_part']['right_hand'].astype(np.int64), dtype=torch.int64)
     })
-    # touch_pair_list.append({
-    #     0: torch.tensor(label['smplx_faces']['smplx_part']['right_hand'].astype(np.int64), dtype=torch.int64),
-    #     1: torch.tensor(label['smplx_faces']['smplx_part']['left_hand'].astype(np.int64), dtype=torch.int64)
-    # })
-    # touch_pair_list.append({
-    #     0: torch.tensor(label['smplx_faces']['smplx_part']['left_hand'].astype(np.int64), dtype=torch.int64),
-    #     1: torch.tensor(label['smplx_faces']['smplx_part']['arm_right_big'].astype(np.int64), dtype=torch.int64)
-    # })
+    touch_pair_list.append({
+        0: torch.tensor(label['smplx_faces']['smplx_part']['right_hand'].astype(np.int64), dtype=torch.int64),
+        1: torch.tensor(label['smplx_faces']['smplx_part']['left_hand'].astype(np.int64), dtype=torch.int64)
+    })
+    touch_pair_list.append({
+        0: torch.tensor(label['smplx_faces']['smplx_part']['left_hand'].astype(np.int64), dtype=torch.int64),
+        1: torch.tensor(label['smplx_faces']['smplx_part']['arm_right_big'].astype(np.int64), dtype=torch.int64)
+    })
 
 
     return {
@@ -166,9 +166,11 @@ def optimize(opt):
     pose_iter = torch.tensor(label['pose'], dtype=torch.float32).to(opt.device)
     shape_iter = torch.tensor(label['shape'], dtype=torch.float32).to(opt.device)
     transl_iter = torch.tensor(label['trans'], dtype=torch.float32).to(opt.device)
+
     pose_iter.requires_grad = True
     shape_iter.requires_grad = True
     transl_iter.requires_grad = True
+
     global_orient = pose_iter[:, 0].view(pose_iter.shape[0], 1, -1)
     body_pose = pose_iter[:, 1:22].view(pose_iter.shape[0], 1, -1)
 
@@ -189,7 +191,9 @@ def optimize(opt):
 
             vertices, kp3d_pre, faces = smpl(global_orient=global_orient[i],
                                              body_pose=body_pose[i],
-                                             betas=shape_iter[i])
+                                             betas=shape_iter[i],
+                                             )
+
             vertices = vertices.squeeze(0) + transl_iter[i]
             kp3d_pre = kp3d_pre.squeeze(0) + transl_iter[i]
 

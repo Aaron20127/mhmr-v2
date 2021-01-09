@@ -111,6 +111,7 @@ def _touch_loss(vertices_a, vertices_b, normal_a, normal_b):
 
 def touch_loss(opt, vertices_batch):
 
+    loss = torch.tensor(0.).cuda()
     for touch_part in opt.dataset['touch_pair_list']:
         # faces center and normal
         vertices_center_list = []
@@ -143,7 +144,7 @@ def touch_loss(opt, vertices_batch):
         normal_a = faces_normal_sample_list[0]
         vertices_b = vertices_center_list[1]
         normal_b = faces_normal_list[1]
-        loss = _touch_loss(vertices_a, vertices_b, normal_a, normal_b)
+        loss += _touch_loss(vertices_a, vertices_b, normal_a, normal_b)
 
         vertices_a = vertices_center_sample_list[1]
         normal_a = faces_normal_sample_list[1]

@@ -2,29 +2,31 @@ import torch
 
 class opt(object):
     # data preprocess
-    image_scale = 0.2
+    image_scale = 0.3
     side_expand = 10
 
     ## log
-    exp_name = 'test_25_collision'
-    sub_scalar_iter = 10
-    sub_other_iter = 50
+    exp_name = 'test_27_hand_pose'
+    sub_scalar_iter = 4
+    sub_other_iter = 20
 
     ## optimize
-    total_iter = 2400
+    total_iter = 5000
 
     ## learning rate
-    lr = 2e-4
+    lr = 10e-4
 
     ## loss
     num_sample_touch_face = 10  # for touch loss
 
+    # mask_weight = 1
     mask_weight = 0
     part_mask_weight = 0
+    # kp2d_weight = 0.01
     kp2d_weight = 0
-    pose_weight = 0.0001
-    shape_weight = 0.01
-    collision_weight = 0
+    pose_weight = 0.001
+    shape_weight = 0.0001
+    collision_weight = 0.005
     touch_weight = 1
     # mask_weight = 1
     # part_mask_weight = 1
