@@ -12,9 +12,10 @@ abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(abspath + "/../../../")
 
 from common.debug import draw_kp2d, draw_mask, add_blend_smpl
-from common.loss import l1_loss, l2_loss, mask_loss, part_mask_loss, smpl_collision_loss, touch_loss
+from common.loss import l1_loss, l2_loss, mask_loss, part_mask_loss, smpl_collision_loss, touch_loss, pose_prior_loss
 from common.camera import CameraPerspective, CameraPerspectiveTorch
 from common.render import PerspectivePyrender, PerspectiveNeuralRender
+from common.pose_prior import PosePrior
 
 from preprocess import get_label, get_smpl_x, create_log
 from config import opt
@@ -222,7 +223,7 @@ def optimize(opt):
         if opt.mask_weight != 0:
             loss_mask = mask_loss(mask_pre, opt.dataset['mask'])
         else:
-            loss_mask = torch.tensor([0.0]).to(opt.device)
+            loss_mask = torch.tensor(0.0).to(opt.device)
 
         # loss_part_mask = part_mask_loss(mask_pre[1:], opt.dataset['part_mask'])
         loss_kp2d = l2_loss(kp2d_body_pre[:, :15], opt.dataset['kp2d'][:, :15]) + \
@@ -232,6 +233,11 @@ def optimize(opt):
         loss_collision = smpl_collision_loss(vertices_batch, faces_batch[0])
         loss_touch = touch_loss(opt, vertices_batch)
 
+        if opt.pose_prior_weight > 0:
+            loss_pose_prior = pose_prior_loss(opt, pose_iter[:, 1:22])
+        else:
+            loss_pose_prior = torch.tensor(0.0).to(opt.device)
+
 
         loss_mask = loss_mask * opt.mask_weight
         loss_kp2d = loss_kp2d * opt.kp2d_weight
@@ -239,13 +245,15 @@ def optimize(opt):
         loss_shape_reg = loss_shape_reg * opt.shape_weight
         loss_collision = loss_collision * opt.collision_weight
         loss_touch = loss_touch * opt.touch_weight
+        loss_pose_prior = loss_pose_prior * opt.pose_prior_weight
 
         loss =  loss_mask +\
                 loss_kp2d + \
                 loss_pose_reg + \
                 loss_shape_reg + \
                 loss_collision + \
-                loss_touch
+                loss_touch + \
+                loss_pose_prior
 
         # update grad
         optimizer.zero_grad()
@@ -270,6 +278,7 @@ def optimize(opt):
             "loss_shape_reg": loss_shape_reg,
             "loss_collision": loss_collision,
             "loss_touch": loss_touch,
+            "loss_pose_prior": loss_pose_prior,
             "loss": loss
         }
         pre_dict = {
@@ -309,6 +318,9 @@ def main():
     opt.smpl_male = get_smpl_x(gender='male', device=opt.device)
     opt.smpl_female = get_smpl_x(gender='female', device=opt.device)
     # opt.smpl_neutral = get_smpl_x(gender='neutral', device=opt.device)
+
+    # pose prior
+    opt.pose_prior = PosePrior().to(opt.device)
 
     # optimize
     optimize(opt)

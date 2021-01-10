@@ -21,12 +21,12 @@ class PosePrior(nn.Module):
 
         self.model = model
 
-    def forward(self, joints_3d):
+    def forward(self, body_pose):
         """
-        :param joints_3d (tensor, Nx1xn_jointsx3)
+        :param body_pose (tensor, Nx1x21x3)
         :return: mean (normal mean)
                  std (normal std)
         """
-        mean, std = self.normal_distribution(joints_3d)
+        mean, std = self.model.normal_distribution(body_pose)
         return mean, std
 

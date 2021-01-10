@@ -153,3 +153,13 @@ def touch_loss(opt, vertices_batch):
         loss += _touch_loss(vertices_a, vertices_b, normal_a, normal_b)
 
     return loss
+
+
+def pose_prior_loss(opt, pose):
+    pose = pose[:, None, :, :]
+    mean, std = opt.pose_prior(pose)
+
+    loss_mean = torch.norm(mean, dim=1).mean()
+    loss_std = torch.norm(std - 1., dim=1).mean()
+
+    return loss_mean + loss_std

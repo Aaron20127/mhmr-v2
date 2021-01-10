@@ -137,7 +137,7 @@ class VPoser(nn.Module):
         :param pose (tensor, Nx1x21x3)
         :return:
         """
-        q_z = self.encode(Pin)
+        q_z = self.encode(pose)
         mean = q_z.mean
         std = q_z.scale
 
@@ -175,7 +175,7 @@ class VPoser(nn.Module):
 
 
 if __name__ == '__main__':
-    device = 'cpu'
+    device = 'cuda'
 
     ## smplx
     abspath = os.path.abspath(os.path.dirname(__file__))
@@ -203,7 +203,7 @@ if __name__ == '__main__':
     body_pose.requires_grad=True
 
     optimizer = torch.optim.Adam([body_pose], lr=30e-4)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, patience=800, threshold=1e-6, verbose=True)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, patience=1000, threshold=1e-8, verbose=True)
 
     i = 0
     while(True):
