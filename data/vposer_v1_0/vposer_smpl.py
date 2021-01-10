@@ -198,6 +198,7 @@ if __name__ == '__main__':
     model.load_state_dict(para_dict)
     model.eval()
 
+    ##
     body_pose = torch.ones((1, 1, 21, 3), dtype=torch.float32).to(device)
     body_pose.requires_grad=True
 
@@ -219,12 +220,13 @@ if __name__ == '__main__':
         if i % 1000 == 0:
             print("%d, %f" % (i, loss.item()))
 
-        if i % 10000 == 0:
+        if i % 10 == 0:
             vertices, kp3d_pre, faces = smpl(body_pose=body_pose.view(1,-1),
                                              betas=betas)
             vertices = vertices.detach().cpu().numpy().squeeze()
 
             save_obj(save_path + '/%s.obj' % str(i).zfill(8), vertices=vertices, faces=faces)
+
             # import pyrender
             # import trimesh
             #
@@ -238,6 +240,29 @@ if __name__ == '__main__':
             # scene.add(mesh)
             #
             # pyrender.Viewer(scene, use_raymond_lighting=True)
+
+            ## sampl_pose test
+            test_sample_pose = True
+            if test_sample_pose:
+                sampl_pose = model.sample_poses(1)
+
+                vertices, kp3d_pre, faces = smpl(body_pose=sampl_pose.view(1, -1),
+                                                 betas=betas)
+                vertices = vertices.detach().cpu().numpy().squeeze()
+
+                import pyrender
+                import trimesh
+
+                vertex_colors = np.ones([vertices.shape[0], 4]) * [0.3, 0.3, 0.3, 0.8]
+                tri_mesh = trimesh.Trimesh(vertices, faces,
+                                           vertex_colors=vertex_colors, )
+
+                mesh = pyrender.Mesh.from_trimesh(tri_mesh, wireframe=True)
+
+                scene = pyrender.Scene()
+                scene.add(mesh)
+
+                pyrender.Viewer(scene, use_raymond_lighting=True)
 
         i+=1
 
