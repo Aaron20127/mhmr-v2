@@ -193,7 +193,7 @@ if __name__ == '__main__':
     os.makedirs(save_path, exist_ok=True)
 
     ##
-    para_dict = torch.load('G:/迅雷下载/vposer_v1_0/vposer_v1_0/snapshots/TR00_E096.pt', map_location=torch.device('cpu'))
+    para_dict = torch.load(abspath + '/snapshots/TR00_E096.pt', map_location=torch.device('cpu'))
     model = VPoser().to(device)
     model.load_state_dict(para_dict)
     model.eval()
