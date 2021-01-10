@@ -132,9 +132,9 @@ class VPoser(nn.Module):
         #return Prec, q_z.mean, q_z.sigma
         return {'pose':Prec, 'mean':q_z.mean, 'std':q_z.scale}
 
-    def normal_distribution(self, joints_3d):
+    def normal_distribution(self, pose):
         """
-        :param joints_3d (tensor, Nx1xn_jointsx3)
+        :param pose (tensor, Nx1x21x3)
         :return:
         """
         q_z = self.encode(Pin)
@@ -175,11 +175,70 @@ class VPoser(nn.Module):
 
 
 if __name__ == '__main__':
+    device = 'cpu'
+
+    ## smplx
+    abspath = os.path.abspath(os.path.dirname(__file__))
+    sys.path.insert(0, abspath + '/../../')
+
+    from common.smpl_x import SMPL_X
+    from common.utils import save_obj
+
+    smplx_model_path = os.path.join(abspath, '../')
+    smpl = SMPL_X(model_path=smplx_model_path, model_type='smplx', gender='male').to(device)
+
+    betas = torch.randn([1, 10], dtype=torch.float32).to(device)
+
+    save_path = abspath + '/output'
+    os.makedirs(save_path, exist_ok=True)
+
+    ##
     para_dict = torch.load('G:/迅雷下载/vposer_v1_0/vposer_v1_0/snapshots/TR00_E096.pt', map_location=torch.device('cpu'))
-    model = VPoser()
+    model = VPoser().to(device)
     model.load_state_dict(para_dict)
     model.eval()
 
-    input = torch.ones((1,1,21,3), dtype=torch.float32)
-    output = model(input)
+    body_pose = torch.ones((1, 1, 21, 3), dtype=torch.float32).to(device)
+    body_pose.requires_grad=True
+
+    optimizer = torch.optim.Adam([body_pose], lr=30e-4)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, patience=800, threshold=1e-6, verbose=True)
+
+    i = 0
+    while(True):
+        output = model(body_pose)
+        loss = torch.norm(output['mean']).mean() + torch.norm(output['std']-1).mean()
+
+        # print(input.grad)
+        optimizer.zero_grad()
+        (loss).backward()
+        optimizer.step()
+        scheduler.step(loss)
+
+        # print(input.grad)
+        if i % 1000 == 0:
+            print("%d, %f" % (i, loss.item()))
+
+        if i % 10000 == 0:
+            vertices, kp3d_pre, faces = smpl(body_pose=body_pose.view(1,-1),
+                                             betas=betas)
+            vertices = vertices.detach().cpu().numpy().squeeze()
+
+            save_obj(save_path + '/%s.obj' % str(i).zfill(8), vertices=vertices, faces=faces)
+            # import pyrender
+            # import trimesh
+            #
+            # vertex_colors = np.ones([vertices.shape[0], 4]) * [0.3, 0.3, 0.3, 0.8]
+            # tri_mesh = trimesh.Trimesh(vertices, faces,
+            #                            vertex_colors=vertex_colors, )
+            #
+            # mesh = pyrender.Mesh.from_trimesh(tri_mesh, wireframe=True)
+            #
+            # scene = pyrender.Scene()
+            # scene.add(mesh)
+            #
+            # pyrender.Viewer(scene, use_raymond_lighting=True)
+
+        i+=1
+
     print('load ok')
