@@ -90,13 +90,14 @@ def dataset(opt):
     label = opt.label
 
     kp2d_gt = torch.tensor(label['kp2d'], dtype=torch.float32).to(opt.device)
-    pose_reg = torch.tensor(label['pose'], dtype=torch.float32).to(opt.device)
-    shape_reg = torch.tensor(label['shape'], dtype=torch.float32).to(opt.device)
+    # pose_reg = torch.tensor(label['pose'], dtype=torch.float32).to(opt.device)
+    # shape_reg = torch.tensor(label['shape'], dtype=torch.float32).to(opt.device)
+    shape_reg = torch.tensor(label['mean_shape'], dtype=torch.float32).to(opt.device)
 
     # mask
     mask_gt = torch.tensor(label['mask'], dtype=torch.float32).to(opt.device)[None, :, :]
-    instance_a_gt = torch.tensor(label['instance_a'], dtype=torch.float32).to(opt.device)[None, :, :]
-    instance_b_gt = torch.tensor(label['instance_b'], dtype=torch.float32).to(opt.device)[None, :, :]
+    # instance_a_gt = torch.tensor(label['instance_a'], dtype=torch.float32).to(opt.device)[None, :, :]
+    # instance_b_gt = torch.tensor(label['instance_b'], dtype=torch.float32).to(opt.device)[None, :, :]
 
     if 'part_segmentation' in label:
         part_mask_gt = np.zeros((len(label['smplx_faces']['part_name_list']),
@@ -136,11 +137,11 @@ def dataset(opt):
 
     return {
         'kp2d': kp2d_gt,
-        'pose_reg': pose_reg,
+        # 'pose_reg': pose_reg,
         'shape_reg': shape_reg,
         'mask': mask_gt,
-        'instance_a': instance_a_gt,
-        'instance_b': instance_b_gt,
+        # 'instance_a': instance_a_gt,
+        # 'instance_b': instance_b_gt,
         # 'part_mask': part_mask_gt,
         # 'full_and_part_mask': full_and_part_mask_gt,
         'part_faces': part_faces_gt,
@@ -164,32 +165,39 @@ def optimize(opt):
     opt.dataset = dataset(opt)
 
     ## learning parameters
-    pose_iter = torch.tensor(label['pose'], dtype=torch.float32).to(opt.device)
-    shape_iter = torch.tensor(label['shape'], dtype=torch.float32).to(opt.device)
+    pose_iter_0_9 = torch.tensor(label['mean_pose'][:, :10], dtype=torch.float32).to(opt.device)
+    pose_iter_12_21 = torch.tensor(label['mean_pose'][:, 12:], dtype=torch.float32).to(opt.device)
+    pose_10_11 = torch.tensor(label['mean_pose'][:, 10:12], dtype=torch.float32).to(opt.device)
+
+    shape_iter = torch.tensor(label['mean_shape'], dtype=torch.float32).to(opt.device)
     transl_iter = torch.tensor(label['trans'], dtype=torch.float32).to(opt.device)
     left_hand_pose_iter = torch.zeros((2, 6), dtype=torch.float32).to(opt.device)
     right_hand_pose_iter = torch.zeros((2, 6), dtype=torch.float32).to(opt.device)
 
-    pose_iter.requires_grad = True
+    pose_iter_0_9.requires_grad = True
+    pose_iter_12_21.requires_grad = True
     shape_iter.requires_grad = True
     transl_iter.requires_grad = True
     left_hand_pose_iter.requires_grad = True
     right_hand_pose_iter.requires_grad = True
 
-    global_orient = pose_iter[:, 0].view(pose_iter.shape[0], 1, -1)
-    body_pose = pose_iter[:, 1:22].view(pose_iter.shape[0], 1, -1)
 
-    optimizer = torch.optim.Adam([pose_iter, shape_iter, transl_iter,
-                                  left_hand_pose_iter, right_hand_pose_iter], lr=opt.lr)
+    optimizer = torch.optim.Adam([pose_iter_0_9, pose_iter_12_21, shape_iter, transl_iter], lr=opt.lr)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, patience=10, verbose=True)
 
     tqdm_iter = tqdm(range(opt.total_iter), leave=True)
     tqdm_iter.set_description(opt.exp_name)
     for it_id in tqdm_iter:
+        # pose
+        global_orient = pose_iter_0_9[:, 0].view(pose_iter_0_9.shape[0], 1, -1)
+        body_pose = torch.cat((pose_iter_0_9[:, 1:], pose_10_11, pose_iter_12_21), dim=1)
+        body_pose = body_pose.view(body_pose.shape[0], 1, -1)
+
         # forword
         vertices_batch = []
         faces_batch = []
         kp3d_pre_batch = []
+
         for i in range(len(global_orient)):
             smpl = smpl_female
             if i == 1:
@@ -209,8 +217,6 @@ def optimize(opt):
             faces_batch.append(torch.tensor(faces.astype(np.int32)).to(opt.device))
             kp3d_pre_batch.append(kp3d_pre)
 
-        print(left_hand_pose_iter.sum() + right_hand_pose_iter.sum())
-
         vertices_batch = torch.stack(vertices_batch, dim=0)
         faces_batch = torch.stack(faces_batch, dim=0)
         kp3d_pre_batch = torch.stack(kp3d_pre_batch, dim=0)
@@ -228,30 +234,54 @@ def optimize(opt):
             mask_pre = neural_render.render_mask(vertices_two_person,
                                                  faces_two_person)
 
-        # loss
-        if opt.mask_weight != 0:
+        ## loss
+        # mask
+        loss_mask = torch.tensor(0.0).to(opt.device)
+        if opt.mask_weight > 0:
             loss_mask = mask_loss(mask_pre, opt.dataset['mask'])
-        else:
-            loss_mask = torch.tensor(0.0).to(opt.device)
+
 
         # loss_part_mask = part_mask_loss(mask_pre[1:], opt.dataset['part_mask'])
-        loss_kp2d = l2_loss(kp2d_body_pre[:, :15], opt.dataset['kp2d'][:, :15]) + \
-                    l2_loss(kp2d_body_pre[:, 16:22], opt.dataset['kp2d'][:, 16:22])
-        loss_pose_reg = l1_loss(pose_iter[:, 1:22], opt.dataset['pose_reg'][:, 1:22])
-        loss_shape_reg = l1_loss(shape_iter, opt.dataset['shape_reg'])
-        loss_collision = smpl_collision_loss(vertices_batch, faces_batch[0])
-        loss_touch = touch_loss(opt, vertices_batch)
 
+        # kp2d
+        loss_kp2d = torch.tensor(0.0).to(opt.device)
+        if opt.kp2d_weight > 0:
+            coco_pred = kp2d_body_pre[:, label["kp2d_smplx_2_coco"]]
+            loss_kp2d = l2_loss(coco_pred, opt.dataset['kp2d'])
+
+
+        # pose and shape reg
+        loss_pose_reg = torch.tensor(0.0).to(opt.device)
+        loss_shape_reg = torch.tensor(0.0).to(opt.device)
+        if opt.pose_reg_weight > 0:
+            loss_pose_reg = l2_loss(pose_iter[:, 1:22], opt.dataset['pose_reg'][:, 1:22])
+        if opt.shape_reg_weight > 0:
+            loss_shape_reg = l2_loss(shape_iter, opt.dataset['shape_reg'])
+
+
+        # loss_collision
+        loss_collision = torch.tensor(0.0).to(opt.device)
+        if opt.collision_weight > 0:
+            loss_collision = smpl_collision_loss(vertices_batch, faces_batch[0])
+
+
+        # loss_touch
+        loss_touch = torch.tensor(0.0).to(opt.device)
+        if opt.touch_weight > 0:
+            loss_touch = touch_loss(opt, vertices_batch)
+
+
+        # loss_pose_prior
+        loss_pose_prior = torch.tensor(0.0).to(opt.device)
         if opt.pose_prior_weight > 0:
-            loss_pose_prior = pose_prior_loss(opt, pose_iter[:, 1:22])
-        else:
-            loss_pose_prior = torch.tensor(0.0).to(opt.device)
+            loss_pose_prior = pose_prior_loss(opt, body_pose)
+
 
 
         loss_mask = loss_mask * opt.mask_weight
         loss_kp2d = loss_kp2d * opt.kp2d_weight
-        loss_pose_reg = loss_pose_reg * opt.pose_weight
-        loss_shape_reg = loss_shape_reg * opt.shape_weight
+        loss_pose_reg = loss_pose_reg * opt.pose_reg_weight
+        loss_shape_reg = loss_shape_reg * opt.shape_reg_weight
         loss_collision = loss_collision * opt.collision_weight
         loss_touch = loss_touch * opt.touch_weight
         loss_pose_prior = loss_pose_prior * opt.pose_prior_weight
@@ -309,7 +339,7 @@ def main():
     opt.logger = create_log(opt.exp_name)
 
     # label
-    opt.label = get_label(img_id=128, visualize=False)
+    opt.label = get_label(img_id=opt.image_id, visualize=False)
 
     # render and camera
     opt.pyrender = PerspectivePyrender(opt.label['intrinsic'], opt.label['pyrender_camera_pose'],
