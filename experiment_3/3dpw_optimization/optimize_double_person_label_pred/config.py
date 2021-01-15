@@ -3,6 +3,8 @@ import torch
 class opt(object):
     # data preprocess
     image_id = 140
+    gender_list = ['female', 'male']
+    # gender_list = ['male', 'female']
     image_scale = 0.25
     side_expand = 10
 
@@ -12,7 +14,7 @@ class opt(object):
     sub_other_iter = 50
 
     ## optimize
-    total_iter = 100000
+    total_iter = 30000
 
     ## learning rate
     lr = 20e-4
@@ -24,14 +26,14 @@ class opt(object):
     part_mask_weight = 0
     kp2d_weight = 1
     pose_reg_weight = 0
-    shape_reg_weight = 30
+    shape_reg_weight = 20
     collision_weight = 0
     touch_weight = 0
-    pose_prior_weight = 500
+    pose_prior_weight = 3000
 
 
     ## cuda
-    gpus = '0'             # -1 cpu, 0,1,2 ... gpu
+    gpus = '0'              # -1 cpu, 0,1,2 ... gpu
     cuda_benchmark = True   # accelerate non-dynamic networks
 
     ## preprocess

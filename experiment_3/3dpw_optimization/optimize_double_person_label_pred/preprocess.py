@@ -122,7 +122,7 @@ def get_label(img_id=0, visualize=False):
 
 
     # kp2d pred
-    kp2d_label_path = os.path.join(abspath, '../data_prepare_pred/3dpw/kp2d_pred/3dpw_kp2d_pred.pkl')
+    kp2d_label_path = os.path.join(abspath, '../data_prepare_pred/3dpw/kp2d_pred/3dpw_kp2d_pred_tracked.pkl')
     with open(kp2d_label_path, 'rb') as f:
         kp2d_label = pkl.load(f, encoding='iso-8859-1')
 
@@ -161,8 +161,7 @@ def get_label(img_id=0, visualize=False):
     label['img'] = label['img_crop']
     label['mask'] = label['mask_crop']
     label['intrinsic'] = label['intrinsic_crop']
-    label['kp2d'][0] = label['kp2d_crop'][1]  # female first
-    label['kp2d'][1] = label['kp2d_crop'][0]  # male second
+    label['kp2d'] = label['kp2d_crop']
 
     # label['part_segmentation'] = label['part_segmentation_crop']
 

@@ -18,7 +18,7 @@ from common.utils import iou
 
 
 def show_person_keypoints():
-    dataDir = 'D:/paper/human_body_reconstruction/datasets/human_reconstruction/coco/coco2017'
+    dataDir = '/opt/LIWEI/datasets/coco/coco2017'
     dataType = 'train2017'
     annFile = '{}/annotations/person_keypoints_{}.json'.format(dataDir, dataType)
 
@@ -131,7 +131,7 @@ def save_visual_label(data, visual_label_name):
 
 
 def main(annotation_name, dataType='train2017', min_iou=0.1, min_area=4000, min_kp2d=6):
-    dataDir = 'D:/paper/human_body_reconstruction/datasets/human_reconstruction/coco/coco2017'
+    dataDir = '/opt/LIWEI/datasets/coco/coco2017'
     # dataType = 'train2017'
     annFile = '{}/annotations/person_keypoints_{}.json'.format(dataDir, dataType)
 

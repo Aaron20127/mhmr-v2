@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 import pycocotools.mask as maskUtils
 
-def draw_kp2d(img, kp2d, draw_conf=False, draw_num=False, radius=8, color=(255,0,0)):
+def draw_kp2d(img, kp2d, draw_conf=False, draw_num=False, radius=8, color=(255,0,0), kp_thresh=0):
     for j in range(len(kp2d)):
-        if ((kp2d.shape[1] == 3) and kp2d[j, 2] > 0):
+        if ((kp2d.shape[1] == 3) and kp2d[j, 2] > kp_thresh):
             p = (int(kp2d[j, 0]), int(kp2d[j, 1]))
             conf = kp2d[j, 2]
             cv2.circle(img, p, radius, color, -1)

@@ -163,3 +163,10 @@ def pose_prior_loss(opt, pose):
     loss_std = torch.norm(std - 1., dim=1).mean()
 
     return loss_mean + loss_std
+
+
+def coco_l2_loss(pred, target):
+    loss_head = torch.sum((pred[:, 5] - target[:, 5])**2) / 5.0
+    loss_body = torch.sum((pred[:, 5:] - target[:, 5:])**2)
+    loss = (loss_head+loss_body) / pred.numel()
+    return loss

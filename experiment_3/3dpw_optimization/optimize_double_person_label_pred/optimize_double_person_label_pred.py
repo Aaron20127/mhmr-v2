@@ -12,7 +12,9 @@ abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(abspath + "/../../../")
 
 from common.debug import draw_kp2d, draw_mask, add_blend_smpl
-from common.loss import l1_loss, l2_loss, mask_loss, part_mask_loss, smpl_collision_loss, touch_loss, pose_prior_loss
+from common.loss import coco_l2_loss, l2_loss, mask_loss, part_mask_loss
+from common.loss import smpl_collision_loss, touch_loss, pose_prior_loss
+
 from common.camera import CameraPerspective, CameraPerspectiveTorch
 from common.render import PerspectivePyrender, PerspectiveNeuralRender
 from common.pose_prior import PosePrior
@@ -157,9 +159,7 @@ def optimize(opt):
     camera = opt.camera
     pyrender = opt.pyrender
     neural_render = opt.neural_render
-    smpl_male = opt.smpl_male
-    smpl_female = opt.smpl_female
-    # smpl_neutral = opt.smpl_neutral
+
 
     ## gt
     opt.dataset = dataset(opt)
@@ -199,9 +199,11 @@ def optimize(opt):
         kp3d_pre_batch = []
 
         for i in range(len(global_orient)):
-            smpl = smpl_female
-            if i == 1:
-                smpl = smpl_male
+            smpl = opt.smpl_male
+            if opt.gender_list[i] == 'female':
+                smpl = opt.smpl_female
+            elif opt.gender_list[i] == 'neural':
+                smpl = opt.smpl_neural
 
             vertices, kp3d_pre, faces = smpl(global_orient=global_orient[i],
                                              body_pose=body_pose[i],
@@ -247,6 +249,7 @@ def optimize(opt):
         loss_kp2d = torch.tensor(0.0).to(opt.device)
         if opt.kp2d_weight > 0:
             coco_pred = kp2d_body_pre[:, label["kp2d_smplx_2_coco"]]
+            # loss_kp2d = coco_l2_loss(coco_pred, opt.dataset['kp2d'])
             loss_kp2d = l2_loss(coco_pred, opt.dataset['kp2d'])
 
 
@@ -323,7 +326,7 @@ def optimize(opt):
         pre_dict = {
             # "part_mask_pre": mask_pre[1:],
             # "mask_pre": mask_pre,
-            "kp2d_body_pre": kp2d_body_pre[:, :22, :],
+            "kp2d_body_pre": kp2d_body_pre[:, label["kp2d_smplx_2_coco"]],
             "vertices": vertices_two_person,
             "faces": faces_two_person
         }
@@ -356,7 +359,7 @@ def main():
     # smplx
     opt.smpl_male = get_smpl_x(gender='male', device=opt.device)
     opt.smpl_female = get_smpl_x(gender='female', device=opt.device)
-    # opt.smpl_neutral = get_smpl_x(gender='neutral', device=opt.device)
+    opt.smpl_neutral = get_smpl_x(gender='neutral', device=opt.device)
 
     # pose prior
     opt.pose_prior = PosePrior().to(opt.device)
