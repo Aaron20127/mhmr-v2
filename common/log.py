@@ -40,7 +40,7 @@ class AverageLoss(object):
 
 
 class Logger(object):
-    def __init__(self, log_dir, config_path, save_obj=False, save_img=False):
+    def __init__(self, log_dir, config_path, save_obj=False, save_img=False, **kwargs):
         self.summary_id = 0
 
         # log dir
@@ -59,10 +59,28 @@ class Logger(object):
             self.save_obj_dir = os.path.join(self.log_dir, 'obj')
             os.makedirs(self.save_obj_dir, exist_ok=True)
 
+            if 'image_id_range' in kwargs:
+                self.save_obj_dir_list = []
+                for id in range(kwargs['image_id_range'][0],
+                                kwargs['image_id_range'][1]):
+                    obj_dir = os.path.join(self.save_obj_dir, str(id).zfill(5))
+                    os.makedirs(obj_dir, exist_ok=True)
+
+                    self.save_obj_dir_list.append(obj_dir)
+
         # save img
         if save_img:
             self.save_img_dir = os.path.join(self.log_dir, 'image')
             os.makedirs(self.save_img_dir, exist_ok=True)
+
+            if 'image_id_range' in kwargs:
+                self.save_img_dir_list = []
+                for id in range(kwargs['image_id_range'][0],
+                                kwargs['image_id_range'][1]):
+                    img_dir = os.path.join(self.save_img_dir, str(id).zfill(5))
+                    os.makedirs(img_dir, exist_ok=True)
+
+                    self.save_img_dir_list.append(img_dir)
 
 
     def update_summary_id(self, summary_id):
@@ -114,11 +132,14 @@ class Logger(object):
         self.writer.flush()
 
 
-    def save_obj(self, name, vertices, faces):
+    def save_obj(self, name, vertices, faces, img_id=-1):
         """ save .obj file to local dir.
             name ("*.obj") file name
         """
         obj_path = os.path.join(self.save_obj_dir, name)
+        if img_id > -1:
+            obj_path = os.path.join(self.save_obj_dir_list[img_id], name)
+
         with open(obj_path, 'w') as fp:
             for v in vertices:
                 fp.write('v %f %f %f\n' % (v[0], v[1], v[2]))
@@ -127,9 +148,14 @@ class Logger(object):
                 fp.write('f %d %d %d\n' % (f[0] + 1, f[1] + 1, f[2] + 1))
 
 
-    def save_image(self, name, img):
-        """ save .obj file to local dir.
-            name ("*.png") file name
+    def save_image(self, name, img, img_id=-1):
+        """ save: .obj file to local dir.
+            name: ("*.png") file name
+            img_id: if img_id == -1, one image
+                    else, image sequence id
         """
         img_path = os.path.join(self.save_img_dir, name)
+        if img_id > -1:
+            img_path = os.path.join(self.save_img_dir_list[img_id], name)
+
         cv2.imwrite(img_path, img)

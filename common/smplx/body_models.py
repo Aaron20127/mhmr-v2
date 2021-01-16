@@ -1209,7 +1209,7 @@ class SMPLX(SMPLH):
         lmk_faces_idx = self.lmk_faces_idx.unsqueeze(
             dim=0).expand(batch_size, -1).contiguous()
         lmk_bary_coords = self.lmk_bary_coords.unsqueeze(dim=0).repeat(
-            self.batch_size, 1, 1)
+            batch_size, 1, 1)
         if self.use_face_contour:
             lmk_idx_and_bcoords = find_dynamic_lmk_idx_and_bcoords(
                 vertices, full_pose, self.dynamic_lmk_faces_idx,
