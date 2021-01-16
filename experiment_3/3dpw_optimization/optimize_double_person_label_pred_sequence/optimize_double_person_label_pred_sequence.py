@@ -282,11 +282,7 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
 
 def optimize(opt):
     ##
-    logger = opt.logger
     label = opt.label
-    pyrender = opt.pyrender
-    neural_render = opt.neural_render
-
 
     ## gt
     opt.dataset = dataset(opt)
@@ -371,7 +367,7 @@ def optimize(opt):
 
         mask = None
         if opt.mask_weight != 0:
-            mask = neural_render.render_mask(vertices_two_person_batch,
+            mask = opt.neural_render.render_mask(vertices_two_person_batch,
                                              faces_two_person_batch)
 
 
@@ -413,11 +409,12 @@ def main():
                                        opt.label['pyrender_camera_pose'],
                                        width=width, height=height)
 
-    K = torch.tensor(opt.label['intrinsic'][None, :, :], dtype=torch.float32).to(opt.device)
-    R = torch.tensor(np.eye(3)[None, :, :], dtype=torch.float32).to(opt.device)
-    t = torch.tensor(np.zeros((1, 3))[None, :, :], dtype=torch.float32).to(opt.device)
+    if opt.mask_weight > 0:
+        K = torch.tensor(opt.label['intrinsic'][None, :, :], dtype=torch.float32).to(opt.device)
+        R = torch.tensor(np.eye(3)[None, :, :], dtype=torch.float32).to(opt.device)
+        t = torch.tensor(np.zeros((1, 3))[None, :, :], dtype=torch.float32).to(opt.device)
 
-    opt.neural_render = PerspectiveNeuralRender(K, R, t, height=height, width=width)
+        opt.neural_render = PerspectiveNeuralRender(K, R, t, height=height, width=width)
 
     opt.camera = CameraPerspectiveTorch(opt.label['intrinsic'], opt.label['extrinsic'], opt.device)
     opt.camera_sequence = CameraPerspectiveTorchMultiImage(opt.label['intrinsic'], opt.label['extrinsic'], opt.device)

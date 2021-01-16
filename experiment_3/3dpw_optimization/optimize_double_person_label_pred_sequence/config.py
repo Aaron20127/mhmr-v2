@@ -26,7 +26,7 @@ class opt(object):
     part_mask_weight = 0
     kp2d_weight = 1
     pose_reg_weight = 0
-    shape_reg_weight = 25
+    shape_reg_weight = 30
     collision_weight = 0
     touch_weight = 0
     pose_prior_weight = 2000

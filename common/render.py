@@ -4,7 +4,6 @@ import trimesh
 import pyrender
 import torch
 import os
-import neural_renderer as nr
 
 # os.environ['PYOPENGL_PLATFORM'] = 'egl'
 
@@ -26,6 +25,7 @@ class PerspectiveNeuralRender(object):
         self.width = width
 
         # create renderer
+        import neural_renderer as nr
         self.renderer = nr.Renderer(image_size=self.output_size,
                                     K=K, R=R, t=t,
                                     orig_size=self.output_size)
