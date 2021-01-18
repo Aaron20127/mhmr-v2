@@ -84,6 +84,12 @@ def register_server(opt, client_list):
             print('register server %d failed, ret %d' % (i, ret))
 
 
+def unregister_server(opt, client_list):
+    for i, client in enumerate(client_list):
+        ret = client.call('unregister', opt.exp_name)
+        if ret != 0:
+            print('unregister server %d failed, ret %d' % (i, ret))
+
 
 def submit_thread():
     global g_save_thread_on, g_lock, g_opt, g_save_list
@@ -115,6 +121,7 @@ def submit_thread():
         else:
             time.sleep(0.1)
 
+    unregister_server(g_opt, client_list)
 
 
 def submit(opt, render, id, loss_dict, pre_dict):

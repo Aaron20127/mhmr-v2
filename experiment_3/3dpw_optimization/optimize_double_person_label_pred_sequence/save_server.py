@@ -182,20 +182,16 @@ class SaveServer(RPCServer):
     def register(self, opt, gt_data, render_data):
         global g_lock, g_data_list
 
-        # check
-        new_data = True
+        # clear same experiment
         g_lock.acquire()
+        new_g_data_list = []
         for old_data in g_data_list:
-            if opt['exp_name'] == old_data['opt']['exp_name']:
-                print('duplicated register, exp_name: %s !' % opt['exp_name'])
-                new_data = False
-                break
+            if opt['exp_name'] != old_data['opt']['exp_name']:
+                new_g_data_list.append(old_data)
+        g_data_list = new_g_data_list
         g_lock.release()
 
         # register
-        if not new_data:
-            return -1
-
         new_data = {
             'has_init': False,
             'opt': opt,
@@ -222,7 +218,23 @@ class SaveServer(RPCServer):
 
         print('g_data_list len: %d' % len(g_data_list))
         return 0
-        
+
+
+    def unregister(self, exp_name):
+        global g_lock, g_data_list
+
+        # clear same experiment
+        g_lock.acquire()
+        new_g_data_list = []
+        for old_data in g_data_list:
+            if exp_name != old_data['opt']['exp_name']:
+                new_g_data_list.append(old_data)
+        g_data_list = new_g_data_list
+        g_lock.release()
+
+        print('g_data_list len: %d' % len(g_data_list))
+        return 0
+
 
     def update(self, exp_name, step_id, pred_dict):
         global g_lock, g_data_list
