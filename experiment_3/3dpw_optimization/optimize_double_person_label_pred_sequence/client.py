@@ -7,6 +7,7 @@ client = RPCClient('127.0.0.1', 6000)
 
 def register_test():
 
+
     opt = {
             'exp_name': 'test',
             'image_scale': 0.25,
