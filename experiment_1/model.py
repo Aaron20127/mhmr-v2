@@ -47,10 +47,12 @@ class BaseNet(nn.Module):
         print('finished create sub modules module.')
 
     def create_sub_modules(self):
-        self.BaseNet = models.resnet50(pretrained=True, progress=True)
+        # self.conv = nn.Conv2d(6, 3, 1)
+        self.BaseNet = models.resnet50(pretrained=False, progress=True)
         self.fc = nn.Linear(self.BaseNet.fc.out_features, 24*3*2)
 
     def forward(self, input):
+        # out = self.conv(input)
         out = self.BaseNet(input)
         out = self.fc(out).view(-1, 2, 72)
 
