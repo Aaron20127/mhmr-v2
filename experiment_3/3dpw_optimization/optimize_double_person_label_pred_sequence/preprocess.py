@@ -14,7 +14,7 @@ sys.path.append(abspath + "/../../../")
 from common.debug import draw_kp2d, draw_mask, add_blend_smpl
 from common.smpl_x import SMPL_X
 from common.log import Logger
-from common.camera import CameraPerspective, CameraPerspectiveTorch
+from common.camera import CameraPerspective, CameraPerspectiveTorch, CameraPerspectiveTorchMultiImage
 from common.render import PerspectivePyrender, PerspectiveNeuralRender
 from common.smpl_uv import smplx_part_label
 from common.pose_prior import PosePrior
@@ -204,7 +204,7 @@ def create_log(exp_name, image_id_range):
     return Logger(log_dir, config_path, save_obj=True, save_img=True, image_id_range=image_id_range)
 
 
-def init_opt(opt):
+def init_opt():
     # submit
     opt.logger = create_log(opt.exp_name, opt.image_id_range)
 

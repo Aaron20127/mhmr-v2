@@ -13,12 +13,12 @@ class opt(object):
     submit_scalar_iter = 10
     submit_other_iter = 100
 
-    save_method = 'thread' # 'thread', 'process' and None
-    save_submit_other = False
-    save_local_other = True
+    use_save_server = False  # use save server to save
+    server_ip_port_list = [['127.0.0.1', 6000]]
+
 
     ## optimize
-    total_iter = 100
+    total_iter = 200
 
     ## learning rate
     lr = 20e-4

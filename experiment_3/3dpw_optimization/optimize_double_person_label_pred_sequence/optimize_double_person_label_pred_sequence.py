@@ -2,32 +2,19 @@ import os
 import sys
 import pickle as pkl
 import cv2
-import pyrender
-import trimesh
-import threading
-from multiprocessing import Process
 from tqdm import tqdm
 import h5py
 import torch
 import numpy as np
-import time
 
 abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(abspath + "/../../../")
 
-from common.debug import draw_kp2d, draw_mask, add_blend_smpl
 from common.loss import coco_l2_loss, l2_loss, mask_loss, part_mask_loss
 from common.loss import smpl_collision_loss, touch_loss, pose_prior_loss
 
 from preprocess import init_opt
-from post_process import submit_thread
-from config import opt
-
-g_save_thread_on = True
-g_lock = threading.Lock()
-g_opt = None
-g_save_list = []
-
+from post_process import init_submit_thread, post_process, save_data
 
 
 def dataset(opt):
@@ -313,7 +300,7 @@ def optimize(opt):
         ## submit
         pre_dict = {
             # "part_mask_pre": mask_pre[1:],
-            "body_kp2d": body_kp2d[:, :, label["kp2d_smplx_2_coco"]].detach().cpu().numpy(),
+            "kp2d": body_kp2d[:, :, label["kp2d_smplx_2_coco"]].detach().cpu().numpy(),
             "vertices": vertices_two_person_batch.detach().cpu().numpy(),
             "faces": faces_two_person_batch.detach().cpu().numpy()
         }
@@ -321,7 +308,7 @@ def optimize(opt):
         if opt.mask_weight != 0:
             pre_dict["mask"] = mask.detach().cpu().numpy()
 
-        save(opt, it_id, loss_dict, pre_dict)
+        save_data(opt, it_id, loss_dict, pre_dict)
 
 
     ## post process
@@ -330,15 +317,11 @@ def optimize(opt):
 
 def main():
     # init opt
-    opt = init_opt(opt)
+    opt = init_opt()
 
     # save threading
-    if opt.save_method == 'thread':
-        global g_opt
-        g_opt = opt
-        sub_thread = threading.Thread(target=submit_thread, args=())
-        sub_thread.setDaemon = True
-        sub_thread.start()
+    if opt.use_save_server:
+        init_submit_thread(opt)
 
     # optimize
     optimize(opt)
