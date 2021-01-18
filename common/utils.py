@@ -447,13 +447,12 @@ def save_obj(save_path, vertices, faces, vt=None):
         for v in vertices:
             fp.write('v %f %f %f\n' % (v[0], v[1], v[2]))
 
-        if vt is not None:
-            for v in vt:
-                fp.write('vt %f %f\n' % (v[0], v[1]))
-
         for f in faces:  # Faces are 1-based, not 0-based in obj files
             fp.write('f %d %d %d\n' % (f[0] + 1, f[1] + 1, f[2] + 1))
 
+        if vt is not None:
+            for v in vt:
+                fp.write('vt %f %f\n' % (v[0], v[1]))
 
 
 def iou(boxA, boxB):
