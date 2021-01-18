@@ -79,7 +79,7 @@ def submit(opt, render, gt, pred_dict):
                                      'kp2d_%s.png' % str(step_id).zfill(5))
             cv2.imwrite(save_path, img_kp2d.astype(np.uint8))
 
-        print('kp2d ok')
+        # print('kp2d ok')
 
     # render
     if 'vertices' in pred_dict and \
@@ -96,7 +96,7 @@ def submit(opt, render, gt, pred_dict):
                                      'img_add_smpl_%s.png' % str(step_id).zfill(5))
             cv2.imwrite(save_path, img_add_smpl.astype(np.uint8))
 
-        print('render ok')
+        # print('render ok')
 
     # add mask
     if 'mask' in pred_dict:
@@ -111,7 +111,7 @@ def submit(opt, render, gt, pred_dict):
                                      'mask_%s.png' % str(step_id).zfill(5))
             cv2.imwrite(save_path, mask.astype(np.uint8))
 
-        print('mask ok')
+        # print('mask ok')
 
     # save obj
     if 'vertices' in pred_dict and \
@@ -124,15 +124,13 @@ def submit(opt, render, gt, pred_dict):
                      pred_dict['vertices'][img_id],
                      pred_dict['faces'][img_id])
 
-        print('obj ok')
+        # print('obj ok')
+
+    print('id %d' % step_id)
 
 
 def save_thread():
     global g_save_thread_on, g_lock, g_data_list
-
-    # render for every experiment
-    render_dict = {}
-
 
     while g_save_thread_on:
 
@@ -161,6 +159,7 @@ def save_thread():
                     'pred_dict': old_data['pred_list'].pop(0),
                     'render': old_data['opt']['render'],
                 }
+                break
         g_lock.release()
 
 
@@ -170,6 +169,8 @@ def save_thread():
                    save_data['render'],
                    save_data['gt'],
                    save_data['pred_dict'])
+        else:
+            time.sleep(0.1)
 
 
 
