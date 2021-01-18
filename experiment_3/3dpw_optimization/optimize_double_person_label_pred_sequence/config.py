@@ -13,7 +13,7 @@ class opt(object):
     submit_scalar_iter = 10
     submit_other_iter = 100
 
-    use_save_server = False  # use save server to save
+    use_save_server = True  # use save server to save
     server_ip_port_list = [['127.0.0.1', 6000]]
 
 
@@ -58,6 +58,8 @@ class opt(object):
         exp_name += '_tou_%g' % touch_weight
     if pose_prior_weight > 0:
         exp_name += '_pri_%g' % pose_prior_weight
+
+    exp_name += '_sca_%g' % image_scale
 
     torch.backends.cudnn.benchmark = cuda_benchmark
 

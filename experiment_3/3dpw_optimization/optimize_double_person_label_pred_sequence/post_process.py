@@ -25,29 +25,29 @@ def pack(data):
     return c_data
 
 
-def update_server(opt, client, pred_dict):
-    exp_name = opt['exp_name']
-    step_id = pred_dict['sted_id']
-    mask = pred_dict['mask']
-    mask = pred_dict['mask']
-    mask = pred_dict['mask']
-    mask = pred_dict['mask']
+def update_server(opt, client_index, client_list, pred_dict):
+    client = client_list[client_index]
+    exp_name = opt.exp_name
+    step_id = pred_dict['step_id']
 
-    pred_dict = {
-        'mask': {'data': zlib.compress(np.ones((2, 256, 256)).astype(np.float64).tostring()), 'shape': (2, 256, 256)},
-        'kp2d': {'data': zlib.compress(np.ones((2, 2, 17, 3)).astype(np.float64).tostring()), 'shape': (2, 2, 17, 3)},
-        'vertices': {'data': zlib.compress(np.array([1,2,3,4,5,6,7,8,9,1,2,3,4,5,6,7,8,9]).astype(np.float64).tostring()),
-                     'shape': (2, 3, 3)},
-        'faces': {'data': zlib.compress(np.array((0, 1, 2, 0, 1, 2)).astype(np.float64).tostring()),'shape': (2, 1, 3)},
-    }
+    new_pred_dict = {}
+    if 'mask' in pred_dict:
+        mask = pred_dict['mask']
+        new_pred_dict['mask'] = {'data': pack(mask), 'shape': mask.shape}
+    if 'kp2d' in pred_dict:
+        kp2d = pred_dict['kp2d']
+        new_pred_dict['kp2d'] = {'data': pack(pred_dict['kp2d']), 'shape': kp2d.shape}
+    if 'vertices' in pred_dict:
+        vertices = pred_dict['vertices']
+        new_pred_dict['vertices'] = {'data': pack(pred_dict['vertices']), 'shape': vertices.shape}
+    if 'faces' in pred_dict:
+        faces = pred_dict['faces']
+        new_pred_dict['faces'] = {'data': pack(pred_dict['faces']), 'shape': faces.shape}
 
-    r = client.call('update', exp_name, step_id, pred_dict)
 
-
-    for i, client in enumerate(client_list):
-        ret = client.call('register', opt, gt, render)
-        if not ret:
-            print('register server %d failed, ret %d' % (i, ret))
+    ret = client.call('update', exp_name, step_id, new_pred_dict)
+    if ret != 0:
+        print('register server %d failed, ret %d' % (client_index, ret))
 
 
 
@@ -80,7 +80,7 @@ def register_server(opt, client_list):
 
     for i, client in enumerate(client_list):
         ret = client.call('register', opt, gt, render)
-        if not ret:
+        if ret != 0:
             print('register server %d failed, ret %d' % (i, ret))
 
 
@@ -106,10 +106,11 @@ def submit_thread():
         # save data
         if save_dict is not None:
             update_server(g_opt,
-                          client_list[client_index],
+                          client_index,
+                          client_list,
                           save_dict)
             client_index += 1
-            if client_list == len(client_list):
+            if client_index == len(client_list):
                 client_index = 0
         else:
             time.sleep(0.1)
@@ -123,7 +124,8 @@ def submit(opt, render, id, loss_dict, pre_dict):
     opt.logger.update_summary_id(id)
 
     # submit scalar
-    logger.scalar_summary_dict(loss_dict)
+    if id % opt.submit_scalar_iter == 0:
+        logger.scalar_summary_dict(loss_dict)
 
     if id % opt.submit_other_iter == 0:
         # kp2d
@@ -203,25 +205,23 @@ def submit(opt, render, id, loss_dict, pre_dict):
 
 
 def save_data(opt, it_id, loss_dict, pred_dict):
-    if it_id % opt.submit_scalar_iter == 0 or \
-       it_id % opt.submit_other_iter == 0:
-
-        if opt.use_save_server:
-
-            global g_lock, g_save_list
-
-            # submit scalar
+    if opt.use_save_server:
+        # submit scalar
+        if it_id % opt.submit_scalar_iter == 0:
             opt.logger.update_summary_id(it_id)
             opt.logger.scalar_summary_dict(loss_dict)
 
-            # update data
+        # update data
+        if it_id % opt.submit_other_iter == 0:
+            global g_lock, g_save_list
+
             g_lock.acquire()
             pred_dict['step_id'] = it_id
             g_save_list.append(pred_dict)
             g_lock.release()
 
-        else:
-            submit(opt, opt.pyrender, it_id, loss_dict, pred_dict)
+    else:
+        submit(opt, opt.pyrender, it_id, loss_dict, pred_dict)
 
 
 def post_process(opt):

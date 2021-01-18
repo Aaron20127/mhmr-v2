@@ -187,7 +187,7 @@ class SaveServer(RPCServer):
         g_lock.acquire()
         for old_data in g_data_list:
             if opt['exp_name'] == old_data['opt']['exp_name']:
-                print('duplicated register!')
+                print('duplicated register, exp_name: %s !' % opt['exp_name'])
                 new_data = False
                 break
         g_lock.release()
