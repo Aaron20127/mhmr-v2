@@ -4,10 +4,14 @@ import pickle as pkl
 import cv2
 import pyrender
 import trimesh
+import threading
+from multiprocessing import Process
 from tqdm import tqdm
 import h5py
 import torch
 import numpy as np
+import time
+
 abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(abspath + "/../../../")
 
@@ -15,91 +19,15 @@ from common.debug import draw_kp2d, draw_mask, add_blend_smpl
 from common.loss import coco_l2_loss, l2_loss, mask_loss, part_mask_loss
 from common.loss import smpl_collision_loss, touch_loss, pose_prior_loss
 
-from common.camera import CameraPerspective, CameraPerspectiveTorch, CameraPerspectiveTorchMultiImage
-from common.render import PerspectivePyrender, PerspectiveNeuralRender
-from common.pose_prior import PosePrior
-
-from preprocess import get_label, get_smpl_x, create_log
+from preprocess import init_opt
+from post_process import submit_thread
 from config import opt
 
+g_save_thread_on = True
+g_lock = threading.Lock()
+g_opt = None
+g_save_list = []
 
-
-
-def submit(opt, id, loss_dict, pre_dict):
-    logger = opt.logger
-    label = opt.label
-    render = opt.pyrender
-
-    opt.logger.update_summary_id(id)
-
-    if id % opt.sub_scalar_iter == 0:
-        logger.scalar_summary_dict(loss_dict)
-
-    if id % opt.sub_other_iter == 0:
-        # kp2d
-        imgs = label['img'].copy()
-        for img_id, img in enumerate(imgs):
-            kp2d_gt = label['kp2d'][img_id].reshape(-1, 2)
-            kp2d = pre_dict['body_kp2d'][img_id].reshape(-1, 2)
-
-            img_kp2d = draw_kp2d(img, kp2d,
-                                 radius=np.int(8*opt.image_scale))
-            img_kp2d = draw_kp2d(img_kp2d, kp2d_gt, color=(0, 255, 0),
-                                 radius=np.int(8*opt.image_scale))
-
-            logger.add_image('img_%s/kp2d_%s' % (str(img_id).zfill(5), str(id)),
-                             cv2.cvtColor(img_kp2d, cv2.COLOR_BGR2RGB))
-            logger.save_image('kp2d_%s.png' % str(id).zfill(5), img_kp2d, img_id=img_id)
-
-
-        # render
-        imgs = label['img'].copy()
-        for img_id, img in enumerate(imgs):
-            img_render, img_depth = render.render_obj(pre_dict['vertices'][img_id],
-                                                      pre_dict['faces'][img_id],
-                                                      show_viewer=False)
-            img_add_smpl = add_blend_smpl(img_render, img_depth > 0, img)
-            logger.add_image('img_%s/img_add_smpl_%s' % (str(img_id).zfill(5), str(id)),
-                             cv2.cvtColor(img_add_smpl, cv2.COLOR_BGR2RGB))
-            logger.save_image('img_add_smpl_%s.png' % str(id).zfill(5), img_add_smpl, img_id=img_id)
-
-
-        # add mask
-        if 'mask' in pre_dict:
-            for img_id, mask_pre in enumerate(pre_dict['mask']):
-                mask_gt = label['mask'][img_id]
-
-                mask = np.zeros((mask_gt.shape[0], mask_gt.shape[1], 3), dtype=np.uint8)
-                mask = draw_mask(mask, mask_gt[:, :, None], color=(0, 255, 0))
-                mask = draw_mask(mask, mask_pre[:, :, None], color=(0, 0, 255))
-
-                logger.add_image('img_%s/mask_%s' % (str(img_id).zfill(5), str(id)),
-                                 cv2.cvtColor(mask, cv2.COLOR_BGR2RGB))
-                logger.save_image('mask_%s.png' % str(id).zfill(5), mask, img_id=img_id)
-
-
-        # add part mask
-        # part_full_mask = np.zeros((label['mask'].shape[0], label['mask'].shape[1], 3), dtype=np.uint8)
-        # for part_name, seg_mask in label['part_segmentation'].items():
-        #     part_full_mask = draw_mask(part_full_mask, seg_mask[:, :, None], color=(0, 255, 0))
-        # # for part_mask in pre_dict['part_mask_pre']:
-        # #     part_full_mask = draw_mask(part_full_mask, part_mask[:, :, None].detach().cpu().numpy(), color=(0, 0, 255))
-        # part_full_mask = draw_mask(part_full_mask, pre_dict['mask_pre'][:, :, None].detach().cpu().numpy(), color=(0, 0, 255))
-        # logger.add_image('part_full_mask_'+str(id), cv2.cvtColor(part_full_mask, cv2.COLOR_BGR2RGB))
-        # logger.save_image('part_full_mask_%s.png' % str(id).zfill(5), part_full_mask)
-
-
-        # save obj
-        for img_id in range(opt.num_img):
-            logger.save_obj('%s.obj' % img_id,
-                            pre_dict['vertices'][img_id],
-                            pre_dict['faces'][img_id],
-                            img_id=img_id)
-
-        # add mesh
-        # logger.add_mesh('mesh_'+str(id),
-        #                  pre_dict['vertices'].detach().cpu().numpy()[np.newaxis,:],
-        #                  pre_dict['faces'][np.newaxis,:])
 
 
 def dataset(opt):
@@ -393,39 +321,24 @@ def optimize(opt):
         if opt.mask_weight != 0:
             pre_dict["mask"] = mask.detach().cpu().numpy()
 
-        submit(opt, it_id, loss_dict, pre_dict)
+        save(opt, it_id, loss_dict, pre_dict)
+
+
+    ## post process
+    post_process(opt)
 
 
 def main():
-    # submit
-    opt.logger = create_log(opt.exp_name, opt.image_id_range)
+    # init opt
+    opt = init_opt(opt)
 
-    # label
-    opt.label = get_label(img_id_range=opt.image_id_range, visualize=False)
-
-    # render and camera
-    height, width = opt.label['img'].shape[1:3]
-    opt.pyrender = PerspectivePyrender(opt.label['intrinsic'],
-                                       opt.label['pyrender_camera_pose'],
-                                       width=width, height=height)
-
-    if opt.mask_weight > 0:
-        K = torch.tensor(opt.label['intrinsic'][None, :, :], dtype=torch.float32).to(opt.device)
-        R = torch.tensor(np.eye(3)[None, :, :], dtype=torch.float32).to(opt.device)
-        t = torch.tensor(np.zeros((1, 3))[None, :, :], dtype=torch.float32).to(opt.device)
-
-        opt.neural_render = PerspectiveNeuralRender(K, R, t, height=height, width=width)
-
-    opt.camera = CameraPerspectiveTorch(opt.label['intrinsic'], opt.label['extrinsic'], opt.device)
-    opt.camera_sequence = CameraPerspectiveTorchMultiImage(opt.label['intrinsic'], opt.label['extrinsic'], opt.device)
-
-    # smplx
-    opt.smpl_male = get_smpl_x(gender='male', device=opt.device)
-    opt.smpl_female = get_smpl_x(gender='female', device=opt.device)
-    opt.smpl_neutral = get_smpl_x(gender='neutral', device=opt.device)
-
-    # pose prior
-    opt.pose_prior = PosePrior().to(opt.device)
+    # save threading
+    if opt.save_method == 'thread':
+        global g_opt
+        g_opt = opt
+        sub_thread = threading.Thread(target=submit_thread, args=())
+        sub_thread.setDaemon = True
+        sub_thread.start()
 
     # optimize
     optimize(opt)

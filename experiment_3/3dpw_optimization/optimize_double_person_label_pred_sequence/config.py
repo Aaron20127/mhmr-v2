@@ -2,7 +2,7 @@ import torch
 
 class opt(object):
     # data preprocess
-    image_id_range = [140, 141]    # attention: [0, 2] only use img 0 and 1, total img == 2
+    image_id_range = [141, 142]    # attention: [0, 2] only use img 0 and 1, total img == 2
     gender_list = ['female', 'male']
     # gender_list = ['male', 'female']
     image_scale = 0.25
@@ -10,11 +10,15 @@ class opt(object):
 
     ## log
     exp_name = 'test_0'
-    sub_scalar_iter = 5
-    sub_other_iter = 50
+    submit_scalar_iter = 10
+    submit_other_iter = 100
+
+    save_method = 'thread' # 'thread', 'process' and None
+    save_submit_other = False
+    save_local_other = True
 
     ## optimize
-    total_iter = 30000
+    total_iter = 100
 
     ## learning rate
     lr = 20e-4

@@ -13,11 +13,11 @@ sys.path.append(abspath + "/../../../")
 
 from common.debug import draw_kp2d, draw_mask, add_blend_smpl
 from common.smpl_x import SMPL_X
-from common.loss import l1_loss, l2_loss, mask_loss, part_mask_loss
 from common.log import Logger
 from common.camera import CameraPerspective, CameraPerspectiveTorch
 from common.render import PerspectivePyrender, PerspectiveNeuralRender
 from common.smpl_uv import smplx_part_label
+from common.pose_prior import PosePrior
 
 from config import opt
 
@@ -202,3 +202,39 @@ def create_log(exp_name, image_id_range):
     log_dir = os.path.join(abspath, 'output', exp_name)
     config_path = os.path.join(abspath, 'config.py')
     return Logger(log_dir, config_path, save_obj=True, save_img=True, image_id_range=image_id_range)
+
+
+def init_opt(opt):
+    # submit
+    opt.logger = create_log(opt.exp_name, opt.image_id_range)
+
+    # label
+    opt.label = get_label(img_id_range=opt.image_id_range, visualize=False)
+
+    # render and camera
+    height, width = opt.label['img'].shape[1:3]
+    opt.pyrender = PerspectivePyrender(opt.label['intrinsic'],
+                                       opt.label['pyrender_camera_pose'],
+                                       width=width, height=height)
+
+    if opt.mask_weight > 0:
+        K = torch.tensor(opt.label['intrinsic'][None, :, :], dtype=torch.float32).to(opt.device)
+        R = torch.tensor(np.eye(3)[None, :, :], dtype=torch.float32).to(opt.device)
+        t = torch.tensor(np.zeros((1, 3))[None, :, :], dtype=torch.float32).to(opt.device)
+
+        opt.neural_render = PerspectiveNeuralRender(K, R, t, height=height, width=width)
+
+    opt.camera = CameraPerspectiveTorch(opt.label['intrinsic'], opt.label['extrinsic'], opt.device)
+    opt.camera_sequence = CameraPerspectiveTorchMultiImage(opt.label['intrinsic'],
+                                                           opt.label['extrinsic'], opt.device)
+
+    # smplx
+    opt.smpl_male = get_smpl_x(gender='male', device=opt.device)
+    opt.smpl_female = get_smpl_x(gender='female', device=opt.device)
+    opt.smpl_neutral = get_smpl_x(gender='neutral', device=opt.device)
+
+    # pose prior
+    opt.pose_prior = PosePrior().to(opt.device)
+
+    return opt
+
