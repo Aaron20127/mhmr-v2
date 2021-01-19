@@ -5,6 +5,8 @@ import time
 import cv2
 import threading
 import numpy as np
+import signal
+from argparse import ArgumentParser
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
@@ -23,6 +25,9 @@ from mprpc import RPCServer
 g_save_thread_on = True
 g_lock = threading.Lock()
 g_data_list = []
+ip = None
+port = None
+g_debug_on = True
 
 """
 g_data_list [
@@ -61,6 +66,8 @@ g_data_list [
 """
 
 def submit(opt, render, gt, pred_dict):
+    global port, g_debug_on
+
     step_id = pred_dict['step_id']
 
     # kp2d
@@ -126,7 +133,8 @@ def submit(opt, render, gt, pred_dict):
 
         # print('obj ok')
 
-    print('[submit] %s, step_id %d' % (opt['exp_name'], step_id))
+    if g_debug_on:
+        print('[submit %d] %s, step_id %d' % (port, opt['exp_name'], step_id))
 
 
 def save_thread():
@@ -181,7 +189,7 @@ class SaveServer(RPCServer):
 
 
     def register(self, opt, gt_data, render_data):
-        global g_lock, g_data_list
+        global g_lock, g_data_list, port, g_debug_on
 
         # clear same experiment
         g_lock.acquire()
@@ -217,13 +225,14 @@ class SaveServer(RPCServer):
         g_data_list.append(new_data)
         g_lock.release()
 
-        print('[register] %s' % opt['exp_name'])
+        if g_debug_on:
+            print('[register %d] %s' % (port, opt['exp_name']))
 
         return 0
 
 
     def unregister(self, exp_name):
-        global g_lock, g_data_list
+        global g_lock, g_data_list, port, g_debug_on
 
         # clear same experiment
         g_lock.acquire()
@@ -234,12 +243,14 @@ class SaveServer(RPCServer):
         g_data_list = new_g_data_list
         g_lock.release()
 
-        print('[unregister] %s' % exp_name)
+        if g_debug_on:
+            print('[unregister %d] %s' % (port, exp_name))
+
         return 0
 
 
     def update(self, exp_name, step_id, pred_dict):
-        global g_lock, g_data_list
+        global g_lock, g_data_list, port, g_debug_on
         ret = -1
 
         new_data = {
@@ -262,12 +273,14 @@ class SaveServer(RPCServer):
                 break
         g_lock.release()
 
-        print('[update] %s, step_id %d' % (exp_name, step_id))
+        if g_debug_on:
+            print('[update %d] %s, step_id %d' % (port, exp_name, step_id))
+
         return ret
 
 
     def data_remain(self, exp_name):
-        global g_lock, g_data_list
+        global g_lock, g_data_list, ip, port, g_debug_on
         ret = 0
         g_lock.acquire()
         for old_data in g_data_list:
@@ -276,12 +289,33 @@ class SaveServer(RPCServer):
                 break
         g_lock.release()
 
-        print('[data_remain] %s, len %d' % (exp_name, ret))
+        if g_debug_on:
+            print('[data_remain %d] %s, len %d' % (port, exp_name, ret))
+
         return ret
 
 
 if __name__ == '__main__':
+    # ip, port
+    parser = ArgumentParser()
+    parser.add_argument('--ip', default='127.0.0.1', type=str)
+    parser.add_argument('--port', default=6000, type=int)
+    parser.add_argument('--debug', action='store_true', default=False)
+    args = parser.parse_args()
 
+    # debug
+    g_debug_on = args.debug
+
+    # signal handle
+    def handler(sig, argv):
+        global g_save_thread_on
+        g_save_thread_on = False
+        sys.exit(0)
+        # os.kill(os.getpid(),signal.SIGKILL)
+
+    signal.signal(signal.SIGINT, handler)
+    signal.signal(signal.SIGTERM, handler)
+    signal.signal(signal.SIGQUIT, handler)
 
     # save thread
     sub_thread = threading.Thread(target=save_thread, args=())
@@ -289,6 +323,8 @@ if __name__ == '__main__':
     sub_thread.start()
 
     # sever
-    server = StreamServer(('127.0.0.1', 6002), SaveServer())
+    ip = args.ip
+    port = args.port
+    server = StreamServer((ip, port), SaveServer())
     server.serve_forever()
 
