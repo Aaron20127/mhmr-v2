@@ -14,7 +14,7 @@ class opt(object):
     submit_other_iter = 10
 
     use_save_server = True  # use save server to save
-    server_ip_port_list = [['127.0.0.1', 6000]]
+    server_ip_port_list = [['127.0.0.1', 6000], ['127.0.0.1', 6001], ['127.0.0.1', 6002]]
 
 
     ## optimize

@@ -126,7 +126,7 @@ def submit(opt, render, gt, pred_dict):
 
         # print('obj ok')
 
-    print('id %d' % step_id)
+    print('[submit] %s, step_id %d' % (opt['exp_name'], step_id))
 
 
 def save_thread():
@@ -217,7 +217,8 @@ class SaveServer(RPCServer):
         g_data_list.append(new_data)
         g_lock.release()
 
-        print('g_data_list len: %d' % len(g_data_list))
+        print('[register] %s' % opt['exp_name'])
+
         return 0
 
 
@@ -233,7 +234,7 @@ class SaveServer(RPCServer):
         g_data_list = new_g_data_list
         g_lock.release()
 
-        print('g_data_list len: %d' % len(g_data_list))
+        print('[unregister] %s' % exp_name)
         return 0
 
 
@@ -261,17 +262,33 @@ class SaveServer(RPCServer):
                 break
         g_lock.release()
 
-        print('g_data_list len: %d' % len(g_data_list))
+        print('[update] %s, step_id %d' % (exp_name, step_id))
+        return ret
+
+
+    def data_remain(self, exp_name):
+        global g_lock, g_data_list
+        ret = 0
+        g_lock.acquire()
+        for old_data in g_data_list:
+            if exp_name == old_data['opt']['exp_name']:
+                ret = len(old_data['pred_list'])
+                break
+        g_lock.release()
+
+        print('[data_remain] %s, len %d' % (exp_name, ret))
         return ret
 
 
 if __name__ == '__main__':
+
+
     # save thread
     sub_thread = threading.Thread(target=save_thread, args=())
     sub_thread.setDaemon = True
     sub_thread.start()
 
     # sever
-    server = StreamServer(('127.0.0.1', 6000), SaveServer())
+    server = StreamServer(('127.0.0.1', 6002), SaveServer())
     server.serve_forever()
 
