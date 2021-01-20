@@ -12,6 +12,7 @@ sys.path.append(abspath + "/../../../")
 
 from common.loss import coco_l2_loss, l2_loss, mask_loss, part_mask_loss
 from common.loss import smpl_collision_loss, touch_loss, pose_prior_loss
+from common.loss import pose_consistency_loss, shape_consistency_loss
 
 from preprocess import init_opt
 from post_process import init_submit_thread, post_process, save_data
@@ -130,7 +131,9 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
     loss_shape_reg,\
     loss_collision, \
     loss_touch, \
-    loss_pose_prior = torch.zeros(7).to(opt.device)
+    loss_pose_consistency, \
+    loss_shape_consistency, \
+    loss_pose_prior = torch.zeros(9).to(opt.device)
 
 
     # mask
@@ -146,9 +149,15 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
 
     # pose and shape reg
     if opt.pose_reg_weight > 0:
-        loss_pose_reg = l2_loss(pose_iter[:, 1:22], opt.dataset['pose_reg'][:, 1:22])
+        loss_pose_reg = l2_loss(pose[:, 1:22], opt.dataset['pose_reg'][:, 1:22])
     if opt.shape_reg_weight > 0:
         loss_shape_reg = l2_loss(shape, opt.dataset['shape_reg'])
+
+    # pose and shape consistency
+    if opt.pose_consistency_weight:
+        loss_pose_consistency = pose_consistency_loss(body_pose)
+    if opt.shape_consistency_weight:
+        loss_shape_consistency = shape_consistency_loss(shape)
 
     # loss_collision
     if opt.collision_weight > 0:
@@ -170,6 +179,8 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
     loss_collision = loss_collision * opt.collision_weight
     loss_touch = loss_touch * opt.touch_weight
     loss_pose_prior = loss_pose_prior * opt.pose_prior_weight
+    loss_pose_consistency = loss_pose_consistency * opt.pose_consistency_weight
+    loss_shape_consistency = loss_shape_consistency * opt.shape_consistency_weight
 
     loss =  loss_mask + \
             loss_kp2d + \
@@ -177,7 +188,10 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
             loss_shape_reg + \
             loss_collision + \
             loss_touch + \
-            loss_pose_prior
+            loss_pose_prior + \
+            loss_pose_consistency + \
+            loss_shape_consistency
+
 
     loss_dict = {
         "loss_mask": loss_mask.detach().cpu().numpy(),
@@ -188,6 +202,8 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
         "loss_collision": loss_collision.detach().cpu().numpy(),
         "loss_touch": loss_touch.detach().cpu().numpy(),
         "loss_pose_prior": loss_pose_prior.detach().cpu().numpy(),
+        "loss_pose_consistency": loss_pose_consistency.detach().cpu().numpy(),
+        "loss_shape_consistency": loss_shape_consistency.detach().cpu().numpy(),
         "loss": loss.detach().cpu().numpy()
     }
 

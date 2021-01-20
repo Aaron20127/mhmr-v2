@@ -2,16 +2,16 @@ import torch
 
 class opt(object):
     # data preprocess
-    image_id_range = [142, 153]    # attention: [0, 2] only use img 0 and 1, total img == 2
+    image_id_range = [1, 2]    # attention: [0, 2] only use img 0 and 1, total img == 2
     gender_list = ['female', 'male']
     # gender_list = ['male', 'female']
     image_scale = 0.25
     side_expand = 10
 
     ## log
-    exp_name = 'test_0'
+    exp_name = ''
     submit_scalar_iter = 10
-    submit_other_iter = 10
+    submit_other_iter = 800
 
     use_save_server = True  # use save server to save
     server_ip_port_list = [['127.0.0.1', 6000],
@@ -26,7 +26,7 @@ class opt(object):
                            ['127.0.0.1', 6009]]
 
     ## optimize
-    total_iter = 100
+    total_iter = 30000
 
     ## learning rate
     lr = 20e-4
@@ -42,6 +42,8 @@ class opt(object):
     collision_weight = 0
     touch_weight = 0
     pose_prior_weight = 2000
+    pose_consistency_weight = 0
+    shape_consistency_weight = 0
 
 
     ## cuda
@@ -66,6 +68,10 @@ class opt(object):
         exp_name += '_tou_%g' % touch_weight
     if pose_prior_weight > 0:
         exp_name += '_pri_%g' % pose_prior_weight
+    if pose_consistency_weight > 0:
+        exp_name += '_pc_%g' % pose_consistency_weight
+    if shape_consistency_weight > 0:
+        exp_name += '_sc_%g' % shape_consistency_weight
 
     exp_name += '_sca_%g' % image_scale
 

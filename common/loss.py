@@ -170,3 +170,14 @@ def coco_l2_loss(pred, target):
     loss_body = torch.sum((pred[:, 5:] - target[:, 5:])**2)
     loss = (loss_head+loss_body) / pred.numel()
     return loss
+
+
+def pose_consistency_loss(pose):
+    loss = l2_loss(pose[:-1, 0], pose[1:, 0]) + \
+           l2_loss(pose[:-1, 1], pose[1:, 1])
+    return loss
+
+def shape_consistency_loss(shape):
+    loss = l2_loss(shape[:-1, 0], shape[1:, 0]) + \
+           l2_loss(shape[:-1, 1], shape[1:, 1])
+    return loss
