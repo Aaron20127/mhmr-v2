@@ -198,15 +198,22 @@ def get_smpl_x(gender='female', device='cpu'):
     return SMPL_X(model_path=smplx_model_path, model_type='smplx', gender=gender).to(device)
 
 
-def create_log(exp_name, image_id_range):
+def create_log(exp_name, image_id_range, submit_step_id_list):
     log_dir = os.path.join(abspath, 'output', exp_name)
     config_path = os.path.join(abspath, 'config.py')
-    return Logger(log_dir, config_path, save_obj=True, save_img=True, image_id_range=image_id_range)
+    return Logger(log_dir, config_path,
+                  save_obj=True, save_img=True,
+                  save_img_sequence=True,
+                  save_obj_sequence=True,
+                  image_id_range=image_id_range,
+                  submit_step_id_list=submit_step_id_list)
 
 
 def init_opt():
     # submit
-    opt.logger = create_log(opt.exp_name, opt.image_id_range)
+    opt.logger = create_log(opt.exp_name,
+                            opt.image_id_range,
+                            opt.submit_step_id_list)
 
     # label
     opt.label = get_label(img_id_range=opt.image_id_range, visualize=False)

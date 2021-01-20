@@ -73,8 +73,12 @@ def register_server(opt, client_list):
     opt = {
         'exp_name': g_opt.exp_name,
         'image_scale': g_opt.image_scale,
+        'submit_other_iter': g_opt.submit_other_iter,
         'img_dir_list': g_opt.logger.save_img_dir_list,
-        'obj_dir_list': g_opt.logger.save_obj_dir_list
+        'obj_dir_list': g_opt.logger.save_obj_dir_list,
+        'img_sequence_dir_list': g_opt.logger.save_img_sequence_dir_list,
+        'obj_sequence_dir_list': g_opt.logger.save_obj_sequence_dir_list,
+        'obj_sequence_full_dir': g_opt.logger.save_obj_sequence_full_dir
     }
     render = {
         'width': {'data': pack(width), 'shape': (1)},

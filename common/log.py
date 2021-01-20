@@ -40,7 +40,8 @@ class AverageLoss(object):
 
 
 class Logger(object):
-    def __init__(self, log_dir, config_path, save_obj=False, save_img=False, **kwargs):
+    def __init__(self, log_dir, config_path, save_obj=False, save_img=False,
+                       save_img_sequence=False, save_obj_sequence=False, **kwargs):
         self.summary_id = 0
 
         # log dir
@@ -68,6 +69,22 @@ class Logger(object):
 
                     self.save_obj_dir_list.append(obj_dir)
 
+        if save_obj_sequence:
+            self.save_obj_sequence_full_dir = os.path.join(self.log_dir, 'obj_sequence_full')
+            os.makedirs(self.save_obj_sequence_full_dir, exist_ok=True)
+
+            self.save_obj_sequence_dir = os.path.join(self.log_dir, 'obj_sequence')
+            os.makedirs(self.save_obj_sequence_dir, exist_ok=True)
+
+            if 'submit_step_id_list' in kwargs:
+                self.save_obj_sequence_dir_list = []
+                for id in kwargs['submit_step_id_list']:
+                        img_dir = os.path.join(self.save_obj_sequence_dir, str(id))
+                        os.makedirs(img_dir, exist_ok=True)
+
+                        self.save_obj_sequence_dir_list.append(img_dir)
+
+
         # save img
         if save_img:
             self.save_img_dir = os.path.join(self.log_dir, 'image')
@@ -81,6 +98,18 @@ class Logger(object):
                     os.makedirs(img_dir, exist_ok=True)
 
                     self.save_img_dir_list.append(img_dir)
+
+        if save_img_sequence:
+            self.save_img_sequence_dir = os.path.join(self.log_dir, 'image_sequence')
+            os.makedirs(self.save_img_sequence_dir, exist_ok=True)
+
+            if 'submit_step_id_list' in kwargs:
+                self.save_img_sequence_dir_list = []
+                for id in kwargs['submit_step_id_list']:
+                        img_dir = os.path.join(self.save_img_sequence_dir, str(id))
+                        os.makedirs(img_dir, exist_ok=True)
+
+                        self.save_img_sequence_dir_list.append(img_dir)
 
 
     def update_summary_id(self, summary_id):

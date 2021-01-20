@@ -14,16 +14,16 @@ class opt(object):
     submit_other_iter = 10
 
     use_save_server = True  # use save server to save
-    server_ip_port_list = [['127.0.0.1', 60020],
-                           ['127.0.0.1', 60021],
-                           ['127.0.0.1', 60022],
-                           ['127.0.0.1', 60023],
-                           ['127.0.0.1', 60024],
-                           ['127.0.0.1', 60025],
-                           ['127.0.0.1', 60026],
-                           ['127.0.0.1', 60027],
-                           ['127.0.0.1', 60028],
-                           ['127.0.0.1', 60029]]
+    server_ip_port_list = [['127.0.0.1', 60030],
+                           ['127.0.0.1', 60031],
+                           ['127.0.0.1', 60032],
+                           ['127.0.0.1', 60033],
+                           ['127.0.0.1', 60034],
+                           ['127.0.0.1', 60035],
+                           ['127.0.0.1', 60036],
+                           ['127.0.0.1', 60037],
+                           ['127.0.0.1', 60038],
+                           ['127.0.0.1', 60039]]
 
     ## optimize
     total_iter = 100
@@ -79,5 +79,10 @@ class opt(object):
 
     gpus_list = [int(i) for i in gpus.split(',')]
     device = 'cuda' if -1 not in gpus_list else 'cpu'
+
     num_img = image_id_range[1] - image_id_range[0]
+
+    # submit_step_id_list
+    submit_step_id_list = \
+        [id for id in range(0, total_iter, submit_other_iter)]
 

@@ -86,6 +86,11 @@ def submit(opt, render, gt, pred_dict):
                                      'kp2d_%s.png' % str(step_id).zfill(5))
             cv2.imwrite(save_path, img_kp2d.astype(np.uint8))
 
+
+            dir_id = step_id // opt['submit_other_iter']
+            save_path = os.path.join(opt['img_sequence_dir_list'][dir_id],
+                                     'kp2d_%s.png' % str(img_id).zfill(5))
+            cv2.imwrite(save_path, img_kp2d.astype(np.uint8))
         # print('kp2d ok')
 
     # render
@@ -103,6 +108,11 @@ def submit(opt, render, gt, pred_dict):
                                      'img_add_smpl_%s.png' % str(step_id).zfill(5))
             cv2.imwrite(save_path, img_add_smpl.astype(np.uint8))
 
+
+            dir_id = step_id // opt['submit_other_iter']
+            save_path = os.path.join(opt['img_sequence_dir_list'][dir_id],
+                                     'img_add_smpl_%s.png' % str(img_id).zfill(5))
+            cv2.imwrite(save_path, img_add_smpl.astype(np.uint8))
         # print('render ok')
 
     # add mask
@@ -118,18 +128,54 @@ def submit(opt, render, gt, pred_dict):
                                      'mask_%s.png' % str(step_id).zfill(5))
             cv2.imwrite(save_path, mask.astype(np.uint8))
 
+
+            dir_id = step_id // opt['submit_other_iter']
+            save_path = os.path.join(opt['img_sequence_dir_list'][dir_id],
+                                     'mask_%s.png' % str(img_id).zfill(5))
+            cv2.imwrite(save_path, mask.astype(np.uint8))
         # print('mask ok')
 
     # save obj
     if 'vertices' in pred_dict and \
        'faces' in pred_dict:
 
+        vertices_sequence = None
+        faces_sequence = None
         for img_id in range(len(gt['img'])):
             save_path = os.path.join(opt['obj_dir_list'][img_id],
                                      '%s.obj' % step_id)
             save_obj(save_path,
                      pred_dict['vertices'][img_id],
                      pred_dict['faces'][img_id])
+
+            # sequence
+            dir_id = step_id // opt['submit_other_iter']
+            save_path = os.path.join(opt['obj_sequence_dir_list'][dir_id],
+                                     '%s.obj' % str(img_id).zfill(5))
+            save_obj(save_path,
+                     pred_dict['vertices'][img_id],
+                     pred_dict['faces'][img_id])
+
+            # full sequence
+            if vertices_sequence is None and \
+               faces_sequence is None:
+                vertices_sequence = pred_dict['vertices'][img_id]
+                faces_sequence = pred_dict['faces'][img_id]
+            else:
+                faces_sequence = np.concatenate((faces_sequence,
+                                                pred_dict['faces'][img_id] +
+                                                len(vertices_sequence)),
+                                                axis=0)
+                vertices_sequence = np.concatenate((vertices_sequence,
+                                                   pred_dict['vertices'][img_id]),
+                                                   axis=0)
+
+
+        save_path = os.path.join(opt['obj_sequence_full_dir'],
+                                 '%s.obj' % str(step_id))
+        save_obj(save_path,
+                 vertices_sequence,
+                 faces_sequence)
 
         # print('obj ok')
 
