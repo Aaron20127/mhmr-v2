@@ -2,31 +2,31 @@ import torch
 
 class opt(object):
     # data preprocess
-    image_id_range = [1, 2]    # attention: [0, 2] only use img 0 and 1, total img == 2
+    image_id_range = [40, 61]    # attention: [0, 2] only use img 0 and 1, total img == 2
     gender_list = ['female', 'male']
     # gender_list = ['male', 'female']
     image_scale = 0.25
     side_expand = 10
 
     ## log
-    exp_name = ''
+    exp_name = 'test_SERVER'
     submit_scalar_iter = 10
-    submit_other_iter = 800
+    submit_other_iter = 10
 
     use_save_server = True  # use save server to save
-    server_ip_port_list = [['127.0.0.1', 6000],
-                           ['127.0.0.1', 6001],
-                           ['127.0.0.1', 6002],
-                           ['127.0.0.1', 6003],
-                           ['127.0.0.1', 6004],
-                           ['127.0.0.1', 6005],
-                           ['127.0.0.1', 6006],
-                           ['127.0.0.1', 6007],
-                           ['127.0.0.1', 6008],
-                           ['127.0.0.1', 6009]]
+    server_ip_port_list = [['127.0.0.1', 60000],
+                           ['127.0.0.1', 60001],
+                           ['127.0.0.1', 60002],
+                           ['127.0.0.1', 60003],
+                           ['127.0.0.1', 60004],
+                           ['127.0.0.1', 60005],
+                           ['127.0.0.1', 60006],
+                           ['127.0.0.1', 60007],
+                           ['127.0.0.1', 60008],
+                           ['127.0.0.1', 60009]]
 
     ## optimize
-    total_iter = 30000
+    total_iter = 100
 
     ## learning rate
     lr = 20e-4
@@ -41,7 +41,7 @@ class opt(object):
     shape_reg_weight = 30
     collision_weight = 0
     touch_weight = 0
-    pose_prior_weight = 2000
+    pose_prior_weight = 1000
     pose_consistency_weight = 0
     shape_consistency_weight = 0
 

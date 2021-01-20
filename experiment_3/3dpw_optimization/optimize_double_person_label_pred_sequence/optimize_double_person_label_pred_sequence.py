@@ -314,17 +314,20 @@ def optimize(opt):
 
 
         ## submit
-        pre_dict = {
-            # "part_mask_pre": mask_pre[1:],
-            "kp2d": body_kp2d[:, :, label["kp2d_smplx_2_coco"]].detach().cpu().numpy(),
-            "vertices": vertices_two_person_batch.detach().cpu().numpy(),
-            "faces": faces_two_person_batch.detach().cpu().numpy()
-        }
+        if it_id % opt.submit_other_iter == 0 or \
+           it_id % opt.submit_scalar_iter == 0:
 
-        if opt.mask_weight != 0:
-            pre_dict["mask"] = mask.detach().cpu().numpy()
+            pred_dict = {
+                # "part_mask_pre": mask_pre[1:],
+                "kp2d": body_kp2d[:, :, label["kp2d_smplx_2_coco"]].detach().cpu().numpy(),
+                "vertices": vertices_two_person_batch.detach().cpu().numpy(),
+                "faces": faces_two_person_batch.detach().cpu().numpy()
+            }
 
-        save_data(opt, it_id, loss_dict, pre_dict)
+            if opt.mask_weight != 0:
+                pred_dict["mask"] = mask.detach().cpu().numpy()
+
+            save_data(opt, it_id, loss_dict, pred_dict)
 
 
     ## post process

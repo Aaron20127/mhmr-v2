@@ -27,6 +27,13 @@ def pack(data):
 
 def update_server(opt, client_index, client_list, pred_dict):
     client = client_list[client_index]
+
+    # is busy ?
+    ret = client.call('remain', opt.exp_name)
+    if ret != 0:
+        return ret
+
+    # send data
     exp_name = opt.exp_name
     step_id = pred_dict['step_id']
 
@@ -48,6 +55,8 @@ def update_server(opt, client_index, client_list, pred_dict):
     ret = client.call('update', exp_name, step_id, new_pred_dict)
     if ret != 0:
         print('register server %d failed, ret %d' % (client_index, ret))
+
+    return ret
 
 
 
@@ -91,10 +100,10 @@ def unregister_server(opt, client_list):
             print('unregister server %d failed, ret %d' % (i, ret))
 
 
-def data_remain_server(opt, client_list):
+def remain_server(opt, client_list):
     ret = 0
     for i, client in enumerate(client_list):
-        ret += client.call('data_remain', opt.exp_name)
+        ret += client.call('remain', opt.exp_name)
 
     return ret
 
@@ -120,22 +129,27 @@ def submit_thread():
 
         # save data
         if save_dict is not None:
-            update_server(g_opt,
-                          client_index,
-                          client_list,
-                          save_dict)
-            client_index += 1
-            if client_index == len(client_list):
-                client_index = 0
+            while True:
+                ret = update_server(g_opt,
+                                    client_index,
+                                    client_list,
+                                    save_dict)
+                client_index += 1
+                if client_index == len(client_list):
+                    client_index = 0
+
+                if ret == 0:
+                    break
         else:
             time.sleep(0.1)
 
-    ## waiting
+
+    # ## waiting
     print('waiting to save data ...')
-    total = data_remain_server(g_opt, client_list)
+    total = remain_server(g_opt, client_list)
     while total > 0:
         print('remain %d' % total)
-        total = data_remain_server(g_opt, client_list)
+        total = remain_server(g_opt, client_list)
         time.sleep(5)
 
     print('done.')
@@ -252,12 +266,25 @@ def save_data(opt, it_id, loss_dict, pred_dict):
 def post_process(opt):
     global g_save_thread_on, g_save_list
 
+    # waiting to send
     print('waiting to send data ...')
     while len(g_save_list) > 0:
         print('remain %d' % len(g_save_list))
         time.sleep(5)
     print('done.')
     g_save_thread_on = False
+
+
+    # waiting to save
+    # print('waiting to save data ...')
+    # total = remain_server(g_opt, client_list)
+    # while total > 0:
+    #     print('remain %d' % total)
+    #     total = remain_server(g_opt, client_list)
+    #     time.sleep(5)
+    #
+    # print('done.')
+    # unregister_server(g_opt, client_list)
 
 
 def init_submit_thread(opt):

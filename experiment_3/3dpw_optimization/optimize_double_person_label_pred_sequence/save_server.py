@@ -206,7 +206,9 @@ class SaveServer(RPCServer):
             'opt': opt,
             'gt': {},
             'render': {},
-            'pred_list': []
+            'pred_list': [],
+            'data_len': 0,
+            'close': False
         }
 
         for k, v in gt_data.items():
@@ -236,11 +238,10 @@ class SaveServer(RPCServer):
 
         # clear same experiment
         g_lock.acquire()
-        new_g_data_list = []
         for old_data in g_data_list:
-            if exp_name != old_data['opt']['exp_name']:
-                new_g_data_list.append(old_data)
-        g_data_list = new_g_data_list
+            if exp_name == old_data['opt']['exp_name']:
+                old_data['close'] = True
+                break
         g_lock.release()
 
         if g_debug_on:
@@ -269,6 +270,7 @@ class SaveServer(RPCServer):
         for old_data in g_data_list:
             if exp_name == old_data['opt']['exp_name']:
                 old_data['pred_list'].append(new_data)
+                old_data['data_len'] += 1
                 ret = 0
                 break
         g_lock.release()
@@ -279,18 +281,18 @@ class SaveServer(RPCServer):
         return ret
 
 
-    def data_remain(self, exp_name):
+    def remain(self, exp_name):
         global g_lock, g_data_list, ip, port, g_debug_on
         ret = 0
         g_lock.acquire()
         for old_data in g_data_list:
             if exp_name == old_data['opt']['exp_name']:
-                ret = len(old_data['pred_list'])
+                ret = old_data['data_len']
                 break
         g_lock.release()
 
         if g_debug_on:
-            print('[data_remain %d] %s, len %d' % (port, exp_name, ret))
+            print('[remain %d] %s, len %d' % (port, exp_name, ret))
 
         return ret
 
