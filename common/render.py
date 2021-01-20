@@ -7,6 +7,7 @@ import os
 
 # os.environ['PYOPENGL_PLATFORM'] = 'egl'
 
+
 from .utils import Rx_np
 
 # https://github.com/daniilidis-group/neural_renderer
@@ -70,7 +71,6 @@ class PerspectivePyrender(object):
                 fx=intrinsic[0][0], fy=intrinsic[1][1],
                 cx=intrinsic[0][2], cy=intrinsic[1][2])
 
-
         self.scene.add(camera, pose=camera_pose)
 
         # add light
@@ -83,6 +83,7 @@ class PerspectivePyrender(object):
         self.r = pyrender.OffscreenRenderer(viewport_width = width,
                                             viewport_height = height,
                                             point_size = 1.0)
+
 
 
     def render_mesh(self, mesh, show_viewer=False):

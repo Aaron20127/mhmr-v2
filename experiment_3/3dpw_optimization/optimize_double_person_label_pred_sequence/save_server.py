@@ -137,8 +137,36 @@ def submit(opt, render, gt, pred_dict):
         print('[submit %d] %s, step_id %d' % (port, opt['exp_name'], step_id))
 
 
+def subtract_data(exp_name):
+    global g_lock, g_data_list
+
+    g_lock.acquire()
+    for old_data in g_data_list:
+        if exp_name == old_data['opt']['exp_name']:
+            old_data['data_len'] -= 1
+            break
+    g_lock.release()
+
+
+def destory():
+    global g_lock, g_data_list, port
+
+    g_lock.acquire()
+    new_g_data_list = []
+    for i, old_data in enumerate(g_data_list):
+        if not ((old_data['close'] == True) and \
+                (old_data['data_len'] <= 0)):
+            new_g_data_list.append(old_data)
+        else:
+            print('[destory %d] %s' % (port, old_data['opt']['exp_name']))
+
+    g_data_list = new_g_data_list
+    g_lock.release()
+
+
 def save_thread():
     global g_save_thread_on, g_lock, g_data_list
+
 
     while g_save_thread_on:
 
@@ -160,12 +188,12 @@ def save_thread():
         save_data = None
         g_lock.acquire()
         for old_data in g_data_list:
-            if len(old_data['pred_list']) > 0:
+            if old_data['data_len'] > 0:
                 save_data = {
                     'opt': old_data['opt'],
                     'gt': old_data['gt'],
                     'pred_dict': old_data['pred_list'].pop(0),
-                    'render': old_data['opt']['render'],
+                    'render': old_data['opt']['render']
                 }
                 break
         g_lock.release()
@@ -177,9 +205,15 @@ def save_thread():
                    save_data['render'],
                    save_data['gt'],
                    save_data['pred_dict'])
+
+
+            subtract_data(save_data['opt']['exp_name'])
         else:
             time.sleep(0.1)
 
+
+        # destory session
+        destory()
 
 
 class SaveServer(RPCServer):
@@ -229,6 +263,24 @@ class SaveServer(RPCServer):
 
         if g_debug_on:
             print('[register %d] %s' % (port, opt['exp_name']))
+
+        return 0
+
+
+    def force_unregister(self, exp_name):
+        global g_lock, g_data_list, port, g_debug_on
+
+        # clear same experiment
+        g_lock.acquire()
+        for old_data in g_data_list:
+            if exp_name == old_data['opt']['exp_name']:
+                old_data['close'] = True
+                old_data['data_len'] = 0
+                break
+        g_lock.release()
+
+        if g_debug_on:
+            print('[force_unregister %d] %s' % (port, exp_name))
 
         return 0
 

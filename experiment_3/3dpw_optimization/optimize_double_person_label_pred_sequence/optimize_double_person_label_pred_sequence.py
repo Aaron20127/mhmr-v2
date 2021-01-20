@@ -1,11 +1,9 @@
 import os
 import sys
-import pickle as pkl
-import cv2
 from tqdm import tqdm
-import h5py
 import torch
 import numpy as np
+import signal
 
 abspath = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(abspath + "/../../../")
@@ -15,7 +13,7 @@ from common.loss import smpl_collision_loss, touch_loss, pose_prior_loss
 from common.loss import pose_consistency_loss, shape_consistency_loss
 
 from preprocess import init_opt
-from post_process import init_submit_thread, post_process, save_data
+from post_process import init_submit_thread, post_process, save_data, force_exit_thread
 
 
 def dataset(opt):
@@ -335,6 +333,16 @@ def optimize(opt):
 
 
 def main():
+    # signal handle
+    def handler(sig, argv):
+        force_exit_thread()
+        sys.exit(0)
+        # os.kill(os.getpid(),signal.SIGKILL)
+
+    signal.signal(signal.SIGINT, handler)
+    signal.signal(signal.SIGTERM, handler)
+    signal.signal(signal.SIGQUIT, handler)
+
     # init opt
     opt = init_opt()
 

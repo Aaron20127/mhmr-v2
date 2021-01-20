@@ -13,7 +13,8 @@ sys.path.append(abspath + "/../../../")
 from common.debug import draw_kp2d, draw_mask, add_blend_smpl
 
 
-g_save_thread_on = True
+g_run_thread = True
+g_force_exit_thread = False
 g_lock = threading.Lock()
 g_opt = None
 g_save_list = []
@@ -100,6 +101,13 @@ def unregister_server(opt, client_list):
             print('unregister server %d failed, ret %d' % (i, ret))
 
 
+def force_unregister_server(opt, client_list):
+    for i, client in enumerate(client_list):
+        ret = client.call('force_unregister', opt.exp_name)
+        if ret != 0:
+            print('force_unregister server %d failed, ret %d' % (i, ret))
+
+
 def remain_server(opt, client_list):
     ret = 0
     for i, client in enumerate(client_list):
@@ -109,7 +117,7 @@ def remain_server(opt, client_list):
 
 
 def submit_thread():
-    global g_save_thread_on, g_lock, g_opt, g_save_list
+    global g_run_thread, g_force_exit_thread, g_lock, g_opt, g_save_list
 
     client_list = [RPCClient(ip_port[0], ip_port[1]) for \
                    ip_port in g_opt.server_ip_port_list]
@@ -118,8 +126,14 @@ def submit_thread():
     # register
     register_server(g_opt, client_list)
 
-    while g_save_thread_on or \
+    while g_run_thread or \
           len(g_save_list) > 0:
+
+        # force exit
+        if g_force_exit_thread:
+            force_unregister_server(g_opt, client_list)
+            sys.exit(0)
+
         # get new save data
         save_dict = None
         g_lock.acquire()
@@ -144,16 +158,23 @@ def submit_thread():
             time.sleep(0.1)
 
 
-    # ## waiting
+    # waiting
     print('waiting to save data ...')
     total = remain_server(g_opt, client_list)
     while total > 0:
+        if g_force_exit_thread:
+            force_unregister_server(g_opt, client_list)
+            sys.exit(0)
+
         print('remain %d' % total)
         total = remain_server(g_opt, client_list)
         time.sleep(5)
 
+    if g_force_exit_thread:
+        force_unregister_server(g_opt, client_list)
+    else:
+        unregister_server(g_opt, client_list)
     print('done.')
-    unregister_server(g_opt, client_list)
 
 
 def submit(opt, render, id, loss_dict, pre_dict):
@@ -264,27 +285,28 @@ def save_data(opt, it_id, loss_dict, pred_dict):
 
 
 def post_process(opt):
-    global g_save_thread_on, g_save_list
+    global g_lock, g_run_thread, g_save_list
 
     # waiting to send
     print('waiting to send data ...')
     while len(g_save_list) > 0:
+        g_lock.acquire()
         print('remain %d' % len(g_save_list))
+        g_lock.release()
         time.sleep(5)
     print('done.')
-    g_save_thread_on = False
+
+    g_lock.acquire()
+    g_run_thread = False
+    g_lock.release()
 
 
-    # waiting to save
-    # print('waiting to save data ...')
-    # total = remain_server(g_opt, client_list)
-    # while total > 0:
-    #     print('remain %d' % total)
-    #     total = remain_server(g_opt, client_list)
-    #     time.sleep(5)
-    #
-    # print('done.')
-    # unregister_server(g_opt, client_list)
+def force_exit_thread():
+    global g_lock, g_force_exit_thread
+
+    g_lock.acquire()
+    g_force_exit_thread = True
+    g_lock.release()
 
 
 def init_submit_thread(opt):
