@@ -20,8 +20,8 @@ def dataset(opt):
     label = opt.label
 
     kp2d_gt = torch.tensor(label['kp2d'], dtype=torch.float32).to(opt.device)
+    kp2d_mask = torch.tensor(label['kp2d_mask'], dtype=torch.float32).to(opt.device)
     # pose_reg = torch.tensor(label['pose'], dtype=torch.float32).to(opt.device)
-    # shape_reg = torch.tensor(label['shape'], dtype=torch.float32).to(opt.device)
     shape_reg = torch.tensor(label['mean_shape'][None, None, ...].\
                              repeat(opt.num_img, axis=0).repeat(2, axis=1),
                              dtype=torch.float32).to(opt.device)
@@ -69,6 +69,7 @@ def dataset(opt):
 
     return {
         'kp2d': kp2d_gt,
+        'kp2d_mask': kp2d_mask,
         # 'pose_reg': pose_reg,
         'shape_reg': shape_reg,
         'mask': mask_gt,
@@ -141,9 +142,10 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
 
     # kp2d
     if opt.kp2d_weight > 0:
-        kp2d_coco = kp2d_body[:, :, opt.label["kp2d_smplx_2_coco"]]
-        # loss_kp2d = coco_l2_loss(coco_pred, opt.dataset['kp2d'])
-        loss_kp2d = l2_loss(kp2d_coco, opt.dataset['kp2d'])
+        kp2d_mask = opt.dataset['kp2d_mask']
+        kp2d_pre = kp2d_mask * kp2d_body[:, :, opt.label["kp2d_smplx_2_coco"]]
+        kp2d_gt = kp2d_mask * opt.dataset['kp2d']
+        loss_kp2d = l2_loss(kp2d_pre, kp2d_gt)
 
     # pose and shape reg
     if opt.pose_reg_weight > 0:
@@ -152,9 +154,9 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
         loss_shape_reg = l2_loss(shape, opt.dataset['shape_reg'])
 
     # pose and shape consistency
-    if opt.pose_consistency_weight:
+    if opt.pose_consistency_weight > 0 and opt.num_img > 1:
         loss_pose_consistency = pose_consistency_loss(body_pose)
-    if opt.shape_consistency_weight:
+    if opt.shape_consistency_weight > 0 and opt.num_img > 1:
         loss_shape_consistency = shape_consistency_loss(shape)
 
     # loss_collision

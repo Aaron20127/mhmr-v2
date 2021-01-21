@@ -2,16 +2,16 @@ import torch
 
 class opt(object):
     # data preprocess
-    image_id_range = [40, 61]    # attention: [0, 2] only use img 0 and 1, total img == 2
+    image_id_range = [50, 51]    # attention: [0, 2] only use img 0 and 1, total img == 2
     gender_list = ['female', 'male']
-    # gender_list = ['male', 'female']
-    image_scale = 0.25
+    kp2d_conf = 0.1              # min kp2d confidence
+    image_scale = 0.5
     side_expand = 10
 
     ## log
-    exp_name = 'test_SERVER4'
+    exp_name = 'TEST_0'
     submit_scalar_iter = 10
-    submit_other_iter = 10
+    submit_other_iter = 500
 
     use_save_server = True  # use save server to save
     server_ip_port_list = [['127.0.0.1', 60030],
@@ -26,7 +26,7 @@ class opt(object):
                            ['127.0.0.1', 60039]]
 
     ## optimize
-    total_iter = 100
+    total_iter = 30000
 
     ## learning rate
     lr = 20e-4
@@ -42,8 +42,9 @@ class opt(object):
     collision_weight = 0
     touch_weight = 0
     pose_prior_weight = 1000
-    pose_consistency_weight = 0
-    shape_consistency_weight = 0
+
+    pose_consistency_weight = 100
+    shape_consistency_weight = 100
 
 
     ## cuda
@@ -85,4 +86,3 @@ class opt(object):
     # submit_step_id_list
     submit_step_id_list = \
         [id for id in range(0, total_iter, submit_other_iter)]
-

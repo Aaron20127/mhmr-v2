@@ -91,7 +91,7 @@ def get_part_segmentation_mask(label, gender, img_id):
     return label
 
 
-def get_label(img_id_range=[0,1], visualize=False):
+def get_label(img_id_range=[0,1], kp2d_conf=0.1, visualize=False):
     label = {}
     img_id_start = img_id_range[0]
     img_id_end = img_id_range[1]
@@ -126,7 +126,8 @@ def get_label(img_id_range=[0,1], visualize=False):
     with open(kp2d_label_path, 'rb') as f:
         kp2d_label = pkl.load(f, encoding='iso-8859-1')
 
-    label["kp2d"] = kp2d_label['kp2d'][img_id_start:img_id_end, :, :, :2]
+    label['kp2d_mask'] = kp2d_label['kp2d'][img_id_start:img_id_end, :, :, 2:3] > kp2d_conf
+    label["kp2d"] = label['kp2d_mask'] * kp2d_label['kp2d'][img_id_start:img_id_end, :, :, :2]
     label["kp2d_smplx_2_coco"] = [55, 57, 56, 59, 58, 16, 17, 18, 19, 20, 21, 1, 2, 4, 5, 7, 8]
 
 
@@ -216,7 +217,9 @@ def init_opt():
                             opt.submit_step_id_list)
 
     # label
-    opt.label = get_label(img_id_range=opt.image_id_range, visualize=False)
+    opt.label = get_label(img_id_range=opt.image_id_range,
+                          kp2d_conf=opt.kp2d_conf,
+                          visualize=False)
 
     # render and camera
     height, width = opt.label['img'].shape[1:3]
