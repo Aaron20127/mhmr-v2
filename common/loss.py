@@ -173,11 +173,15 @@ def coco_l2_loss(pred, target):
 
 
 def pose_consistency_loss(pose):
-    loss = l2_loss(pose[:-1, 0], pose[1:, 0]) + \
-           l2_loss(pose[:-1, 1], pose[1:, 1])
+    loss = l2_loss(pose[:-1], pose[1:])
     return loss
 
+
 def shape_consistency_loss(shape):
-    loss = l2_loss(shape[:-1, 0], shape[1:, 0]) + \
-           l2_loss(shape[:-1, 1], shape[1:, 1])
+    loss = l2_loss(shape[:-1], shape[1:])
+    return loss
+
+
+def kp3d_consistency_loss(kp3d):
+    loss = l2_loss(kp3d[:-1], kp3d[1:])
     return loss

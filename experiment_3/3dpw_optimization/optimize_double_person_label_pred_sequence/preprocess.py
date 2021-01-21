@@ -128,7 +128,7 @@ def get_label(img_id_range=[0,1], kp2d_conf=0.1, visualize=False):
 
     label['kp2d_mask'] = kp2d_label['kp2d'][img_id_start:img_id_end, :, :, 2:3] > kp2d_conf
     label["kp2d"] = label['kp2d_mask'] * kp2d_label['kp2d'][img_id_start:img_id_end, :, :, :2]
-    label["kp2d_smplx_2_coco"] = [55, 57, 56, 59, 58, 16, 17, 18, 19, 20, 21, 1, 2, 4, 5, 7, 8]
+    label["joint_smplx_2_coco"] = [55, 57, 56, 59, 58, 16, 17, 18, 19, 20, 21, 1, 2, 4, 5, 7, 8]
 
 
     # load img and mask

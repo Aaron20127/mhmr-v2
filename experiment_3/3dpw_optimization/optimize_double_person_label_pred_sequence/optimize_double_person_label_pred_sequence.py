@@ -10,7 +10,7 @@ sys.path.append(abspath + "/../../../")
 
 from common.loss import coco_l2_loss, l2_loss, mask_loss, part_mask_loss
 from common.loss import smpl_collision_loss, touch_loss, pose_prior_loss
-from common.loss import pose_consistency_loss, shape_consistency_loss
+from common.loss import pose_consistency_loss, shape_consistency_loss, kp3d_consistency_loss
 
 from preprocess import init_opt
 from post_process import init_submit_thread, post_process, save_data, force_exit_thread
@@ -123,7 +123,7 @@ def init_para(opt):
     }
 
 
-def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
+def loss_f(opt, mask, kp2d, kp3d, global_pose, body_pose, shape, vertices_batch, faces):
     loss_mask, \
     loss_kp2d, \
     loss_pose_reg, \
@@ -132,7 +132,8 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
     loss_touch, \
     loss_pose_consistency, \
     loss_shape_consistency, \
-    loss_pose_prior = torch.zeros(9).to(opt.device)
+    loss_kp3d_consistency, \
+    loss_pose_prior = torch.zeros(10).to(opt.device)
 
 
     # mask
@@ -143,7 +144,7 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
     # kp2d
     if opt.kp2d_weight > 0:
         kp2d_mask = opt.dataset['kp2d_mask']
-        kp2d_pre = kp2d_mask * kp2d_body[:, :, opt.label["kp2d_smplx_2_coco"]]
+        kp2d_pre = kp2d_mask * kp2d[:, :, opt.label["joint_smplx_2_coco"]]
         kp2d_gt = kp2d_mask * opt.dataset['kp2d']
         loss_kp2d = l2_loss(kp2d_pre, kp2d_gt)
 
@@ -153,11 +154,19 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
     if opt.shape_reg_weight > 0:
         loss_shape_reg = l2_loss(shape, opt.dataset['shape_reg'])
 
-    # pose and shape consistency
+
+    # pose, shape, kp3d consistency
     if opt.pose_consistency_weight > 0 and opt.num_img > 1:
-        loss_pose_consistency = pose_consistency_loss(body_pose)
+        pose = torch.cat((global_pose, body_pose), dim=2)
+        loss_pose_consistency = pose_consistency_loss(pose)
+
     if opt.shape_consistency_weight > 0 and opt.num_img > 1:
         loss_shape_consistency = shape_consistency_loss(shape)
+
+    if opt.kp3d_consistency_weight > 0 and opt.num_img > 1:
+        kp3d_pre = kp3d[:, :, opt.label["joint_smplx_2_coco"]]
+        loss_kp3d_consistency = kp3d_consistency_loss(kp3d_pre)
+
 
     # loss_collision
     if opt.collision_weight > 0:
@@ -181,6 +190,7 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
     loss_pose_prior = loss_pose_prior * opt.pose_prior_weight
     loss_pose_consistency = loss_pose_consistency * opt.pose_consistency_weight
     loss_shape_consistency = loss_shape_consistency * opt.shape_consistency_weight
+    loss_kp3d_consistency = loss_kp3d_consistency * opt.kp3d_consistency_weight
 
     loss =  loss_mask + \
             loss_kp2d + \
@@ -190,7 +200,8 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
             loss_touch + \
             loss_pose_prior + \
             loss_pose_consistency + \
-            loss_shape_consistency
+            loss_shape_consistency + \
+            loss_kp3d_consistency
 
 
     loss_dict = {
@@ -204,6 +215,7 @@ def loss_f(opt, mask, kp2d_body, body_pose, shape, vertices_batch, faces):
         "loss_pose_prior": loss_pose_prior.detach().cpu().numpy(),
         "loss_pose_consistency": loss_pose_consistency.detach().cpu().numpy(),
         "loss_shape_consistency": loss_shape_consistency.detach().cpu().numpy(),
+        "loss_kp3d_consistency": loss_kp3d_consistency.detach().cpu().numpy(),
         "loss": loss.detach().cpu().numpy()
     }
 
@@ -289,7 +301,7 @@ def optimize(opt):
         kp3d_batch = torch.stack(kp3d_batch, dim=1)
 
         # kp2d pred
-        body_kp2d = opt.camera_sequence.perspective(kp3d_batch)
+        kp2d_batch = opt.camera_sequence.perspective(kp3d_batch)
 
         # mask and part mask pred
         vertices_batch = opt.camera_sequence.world_2_camera(vertices_batch)
@@ -299,12 +311,12 @@ def optimize(opt):
         mask = None
         if opt.mask_weight != 0:
             mask = opt.neural_render.render_mask(vertices_two_person_batch,
-                                             faces_two_person_batch)
+                                                 faces_two_person_batch)
 
 
         ## loss
-        loss, loss_dict = loss_f(opt, mask, body_kp2d, body_pose,
-                                 shape_iter, vertices_batch, faces)
+        loss, loss_dict = loss_f(opt, mask, kp2d_batch, kp3d_batch, global_orient,
+                                 body_pose, shape_iter, vertices_batch, faces)
 
         # update grad
         optimizer.zero_grad()
@@ -319,7 +331,7 @@ def optimize(opt):
 
             pred_dict = {
                 # "part_mask_pre": mask_pre[1:],
-                "kp2d": body_kp2d[:, :, label["kp2d_smplx_2_coco"]].detach().cpu().numpy(),
+                "kp2d": kp2d_batch[:, :, label["joint_smplx_2_coco"]].detach().cpu().numpy(),
                 "vertices": vertices_two_person_batch.detach().cpu().numpy(),
                 "faces": faces_two_person_batch.detach().cpu().numpy()
             }
