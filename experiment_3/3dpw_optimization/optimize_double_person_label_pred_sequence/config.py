@@ -1,15 +1,15 @@
 import torch
 
 class opt(object):
-    # data preprocess
-    image_id_range = [40, 61]    # attention: [0, 2] only use img 0 and 1, total img == 2
+    ## data preprocess
+    image_id_range = [40, 61]     # attention: [0, 2] only use img 0 and 1, total img == 2
     gender_list = ['female', 'male']
-    kp2d_conf = 0.3              # min kp2d confidence
-    image_scale = 0.25
+    kp2d_conf = 0.3               # min kp2d confidence
+    image_scale = 0.15
     side_expand = 10
 
     ## log
-    exp_name = 'T0'
+    exp_name = 'T4'
     submit_scalar_iter = 20
     submit_other_iter = 500
 
@@ -30,7 +30,7 @@ class opt(object):
     ## loss
     num_sample_touch_face = 20  # for touch loss
 
-    mask_weight = 0
+    mask_weight = 1
     part_mask_weight = 0
     kp2d_weight = 1
     pose_reg_weight = 0
@@ -39,12 +39,13 @@ class opt(object):
     touch_weight = 0
     pose_prior_weight = 1000
 
-    # global_pose_consistency_weight = 0
-    # body_pose_consistency_weight = 0
-    # transl_consistency_weight = 0
+    R_consistency_weight = 0
+    T_consistency_weight = 0
+    body_pose_consistency_weight = 0
+
     pose_consistency_weight = 0
     shape_consistency_weight = 10000
-    kp3d_consistency_weight = 0
+    kp3d_consistency_weight = 10000
 
     ## cuda
     gpus = '0'              # -1 cpu, 0,1,2 ... gpu
@@ -57,6 +58,9 @@ class opt(object):
 
     exp_name = exp_name + '_id_[%g,%g]' % (image_id_range[0], image_id_range[1])
     exp_name = exp_name + '_lr_%g' % lr
+
+    if mask_weight > 0:
+        exp_name += '_msk_%g' % mask_weight
     if shape_reg_weight > 0:
         exp_name += '_sha_%g' % shape_reg_weight
     if pose_reg_weight > 0:

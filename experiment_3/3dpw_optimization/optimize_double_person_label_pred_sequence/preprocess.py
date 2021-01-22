@@ -56,9 +56,9 @@ def crop_img(opt, label):
                 int(opt.image_scale * height))
 
     label['img_crop'] = np.stack([cv2.resize(im, new_size,
-                                             interpolation=cv2.INTER_CUBIC) for im in img_crop], axis=0)
-    label['mask_crop'] = np.stack([cv2.resize((im * 255).astype(np.uint8), new_size,
-                                              interpolation=cv2.INTER_CUBIC) / 255.0 for im in mask_crop], axis=0)
+                                  interpolation=cv2.INTER_CUBIC) for im in img_crop], axis=0)
+    label['mask_crop'] = np.stack([(cv2.resize((im * 255).astype(np.uint8), new_size,
+                                  interpolation=cv2.INTER_CUBIC) > 0).astype(np.float32) for im in mask_crop], axis=0)
 
     if 'part_segmentation' in label:
         part_segmentation_crop_resize_dict = {}

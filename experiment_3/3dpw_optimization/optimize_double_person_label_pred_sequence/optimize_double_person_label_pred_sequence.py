@@ -309,7 +309,7 @@ def optimize(opt):
                                                vertices_batch[:, 1]), dim=1)
 
         mask = None
-        if opt.mask_weight != 0:
+        if opt.mask_weight > 0:
             mask = opt.neural_render.render_mask(vertices_two_person_batch,
                                                  faces_two_person_batch)
 
