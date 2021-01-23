@@ -172,6 +172,11 @@ def coco_l2_loss(pred, target):
     return loss
 
 
+def transl_consistency_loss(transl):
+    loss = l2_loss(transl[:-1], transl[1:])
+    return loss
+
+
 def pose_consistency_loss(pose):
     loss = l2_loss(pose[:-1], pose[1:])
     return loss
