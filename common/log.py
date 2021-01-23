@@ -41,7 +41,8 @@ class AverageLoss(object):
 
 class Logger(object):
     def __init__(self, log_dir, config_path, save_obj=False, save_img=False,
-                       save_img_sequence=False, save_obj_sequence=False, **kwargs):
+                       save_img_sequence=False, save_obj_sequence=False,
+                       save_check_point=True, **kwargs):
         self.summary_id = 0
 
         # log dir
@@ -54,6 +55,11 @@ class Logger(object):
 
         # Summary Writer
         self.writer = tensorboardX.SummaryWriter(log_dir=self.log_dir)
+
+        # save check point
+        if save_check_point:
+            self.save_check_point_dir = os.path.join(self.log_dir, 'check_point')
+            os.makedirs(self.save_check_point_dir, exist_ok=True)
 
         # save obj
         if save_obj:
