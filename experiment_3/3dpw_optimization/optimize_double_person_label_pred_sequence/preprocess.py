@@ -258,7 +258,8 @@ def preprocess_opt():
     opt.exp_name = opt.exp_name + '_lr_%g' % opt.lr
 
     if opt.mask_weight > 0:
-        opt.exp_name += '_msk_%g' % opt.mask_weight
+        opt.exp_name += '_msk_[%g,%g]' % (opt.mask_weight_list[0],
+                                          opt.mask_weight_list[1])
     if opt.shape_reg_weight > 0:
         opt.exp_name += '_sha_%g' % opt.shape_reg_weight
     if opt.pose_reg_weight > 0:
@@ -296,6 +297,12 @@ def preprocess_opt():
     opt.submit_step_id_list = \
         [id for id in range(0, opt.total_iter, opt.submit_other_iter)]
 
+
+    # mask, kp2d weight
+    opt.mask_weight_list = torch.tensor(opt.mask_weight_list,
+                                        dtype=torch.float32).to(opt.device)
+    opt.kp2d_weight_list = torch.tensor(opt.kp2d_weight_list,
+                                        dtype=torch.float32).to(opt.device)
 
     return opt
 

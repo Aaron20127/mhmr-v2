@@ -7,6 +7,5 @@ python save_server.py --port 40030 $debug &
 python save_server.py --port 40031 $debug &
 python save_server.py --port 40032 $debug &
 python save_server.py --port 40033 $debug &
-python save_server.py --port 40034 $debug &
-python save_server.py --port 40035 $debug &
+
 

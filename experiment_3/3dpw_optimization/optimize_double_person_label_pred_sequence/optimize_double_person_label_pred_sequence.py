@@ -172,7 +172,7 @@ def loss_f(opt, mask, kp2d, kp3d, global_pose, transl, body_pose, shape, vertice
 
     # mask
     if opt.mask_weight > 0:
-        loss_mask = mask_loss(mask, opt.dataset['mask'])
+        loss_mask = mask_loss(mask, opt.dataset['mask'], opt.mask_weight_list)
     # loss_part_mask = part_mask_loss(mask_pre[1:], opt.dataset['part_mask'])
 
     # kp2d
