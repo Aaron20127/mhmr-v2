@@ -89,7 +89,9 @@ def init_para(opt):
     faces_two_person_batch = np.concatenate((faces, faces+len(vertices)), axis=0)[None, ...].\
                                             repeat(opt.num_img, axis=0).astype(dtype=np.int32)
 
-    pose_0_9 = label['mean_pose'][:10][None, None, ...].repeat(opt.num_img, axis=0).\
+    pose_0 = label['mean_pose'][0][None, None, None, ...].repeat(opt.num_img, axis=0). \
+                                                      repeat(2, axis=1).astype(dtype=np.float32)
+    pose_1_9 = label['mean_pose'][1:10][None, None, ...].repeat(opt.num_img, axis=0).\
                                                         repeat(2, axis=1).astype(dtype=np.float32)
     pose_12_21 = label['mean_pose'][12:][None, None, ...].repeat(opt.num_img, axis=0).\
                                                         repeat(2, axis=1).astype(dtype=np.float32)
@@ -108,7 +110,8 @@ def init_para(opt):
 
 
     update_para = {
-        'pose_0_9': pose_0_9,
+        'pose_0': pose_0,
+        'pose_1_9': pose_1_9,
         'pose_12_21': pose_12_21,
         'pose_10_11': pose_10_11,
         'shape': shape,
@@ -131,19 +134,11 @@ def init_para(opt):
 
 
     ## to device
-    requires_grad_para_list = [
-        'pose_0_9',
-        'pose_12_21',
-        'shape',
-        'transl',
-        'left_hand_pose',
-        'right_hand_pose'
-    ]
     for k, v in update_para.items():
         update_para[k] = torch.tensor(v,
                               dtype=torch.float32).to(opt.device)
-        if k in requires_grad_para_list:
-            update_para[k].requires_grad = True
+        if k in opt.requires_grad_para_dict:
+            update_para[k].requires_grad = opt.requires_grad_para_dict[k]
 
 
     other_para = {
@@ -226,7 +221,7 @@ def loss_f(opt, mask, kp2d, kp3d, global_pose, transl, body_pose, shape, vertice
     loss_touch = loss_touch * opt.touch_weight
     loss_pose_prior = loss_pose_prior * opt.pose_prior_weight
     loss_global_pose_consistency = loss_global_pose_consistency * opt.global_pose_consistency_weight
-    loss_body_pose_consistency = loss_global_pose_consistency * opt.body_pose_consistency_weight
+    loss_body_pose_consistency = loss_body_pose_consistency * opt.body_pose_consistency_weight
     loss_transl_consistency = loss_transl_consistency * opt.transl_consistency_weight
     loss_shape_consistency = loss_shape_consistency * opt.shape_consistency_weight
     loss_kp3d_consistency = loss_kp3d_consistency * opt.kp3d_consistency_weight
@@ -279,7 +274,8 @@ def optimize(opt):
     faces_two_person_batch = other_para['faces_two_person_batch']
 
     # learning parameters
-    pose_iter_0_9 = opt.update_para['pose_0_9']
+    pose_iter_0 = opt.update_para['pose_0']
+    pose_iter_1_9 = opt.update_para['pose_1_9']
     pose_iter_12_21 = opt.update_para['pose_12_21']
     pose_10_11 = opt.update_para['pose_10_11']
 
@@ -293,17 +289,21 @@ def optimize(opt):
     reye_pose = opt.update_para['reye_pose']
     expression = opt.update_para['expression']
 
-
-    optimizer = torch.optim.Adam([pose_iter_0_9, pose_iter_12_21, shape_iter, transl_iter], lr=opt.lr)
+    optimizer = torch.optim.Adam([pose_iter_0,
+                                  pose_iter_1_9,
+                                  pose_iter_12_21,
+                                  shape_iter,
+                                  transl_iter], lr=opt.lr)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, patience=10, verbose=True)
 
+    ## iter
     tqdm_iter = tqdm(range(opt.total_iter), leave=True)
     tqdm_iter.set_description(opt.exp_name)
     for it_id in tqdm_iter:
 
         # pose
-        global_orient = pose_iter_0_9[:, :, 0].view(opt.num_img, 2, -1)
-        body_pose = torch.cat((pose_iter_0_9[:, :, 1:], pose_10_11, pose_iter_12_21), dim=2)
+        global_orient = pose_iter_0.view(opt.num_img, 2, -1)
+        body_pose = torch.cat((pose_iter_1_9, pose_10_11, pose_iter_12_21), dim=2)
         body_pose = body_pose.view(opt.num_img, 2, -1)
 
         # forword
