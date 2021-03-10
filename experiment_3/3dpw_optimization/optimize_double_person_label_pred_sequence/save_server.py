@@ -86,10 +86,10 @@ def submit(opt, render, gt, pred_dict):
             kp2d = pred_dict['kp2d'][img_id].reshape(-1, 2)
 
             img_kp2d = draw_kp2d(img, kp2d,
-                                 radius=np.int(8 * opt['image_scale']))
+                                 radius=int(8 * opt['image_scale']))
             img_kp2d = draw_kp2d(img_kp2d, kp2d_gt,
                                  color=(0, 255, 0), draw_num=True,
-                                 radius=np.int(8 * opt['image_scale']))
+                                 radius=int(8 * opt['image_scale']))
 
             save_path = os.path.join(opt['img_dir_list'][img_id],
                                      'kp2d_%s.png' % str(step_id).zfill(5))
