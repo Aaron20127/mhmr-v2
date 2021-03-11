@@ -191,3 +191,12 @@ def shape_consistency_loss(shape):
 def kp3d_consistency_loss(kp3d):
     loss = l2_loss(kp3d[:-1], kp3d[1:])
     return loss
+
+
+def texture_render_loss(img_pred, img_gt, mask):
+    loss = l2_loss(img_pred * mask[..., None], img_gt * mask[..., None])
+    return loss
+
+def texture_temporal_consistency_loss(textures):
+    loss = l2_loss(textures[:-1], textures[1:])
+    return loss

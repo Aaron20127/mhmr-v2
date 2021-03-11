@@ -102,6 +102,35 @@ def submit(opt, render, gt, pred_dict):
             cv2.imwrite(save_path, img_kp2d.astype(np.uint8))
         # print('kp2d ok')
 
+
+    # neural render texture
+    if "img" in pred_dict and "depth" in pred_dict:
+        imgs = gt['img'].copy()
+        for img_id, img in enumerate(imgs):
+            img_texture = (pred_dict['img'][img_id] * 255.0).astype(np.uint8)
+            img_depth = pred_dict['depth'][img_id]
+            img_add_texture = add_blend_smpl(img_texture, img_depth < 100, img)
+
+            save_path = os.path.join(opt['img_dir_list'][img_id],
+                                     'img_add_texture_%s.png' % str(step_id).zfill(5))
+            cv2.imwrite(save_path, img_add_texture.astype(np.uint8))
+
+            save_path = os.path.join(opt['img_dir_list'][img_id],
+                                     'img_texture_%s.png' % str(step_id).zfill(5))
+            cv2.imwrite(save_path, img_texture.astype(np.uint8))
+
+
+            dir_id = step_id // opt['submit_other_iter']
+            save_path = os.path.join(opt['img_sequence_dir_list'][dir_id],
+                                     'img_add_texture_%s.png' % str(img_id).zfill(5))
+            cv2.imwrite(save_path, img_add_texture.astype(np.uint8))
+
+            save_path = os.path.join(opt['img_sequence_dir_list'][dir_id],
+                                     'img_texture_%s.png' % str(img_id).zfill(5))
+            cv2.imwrite(save_path, img_texture.astype(np.uint8))
+
+        # print('neural render texture ok')
+
     # render
     if 'vertices' in pred_dict and \
        'faces' in pred_dict:

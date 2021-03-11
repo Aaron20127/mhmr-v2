@@ -38,28 +38,32 @@ def update_server(opt, client_index, client_list, pred_dict):
     exp_name = opt.exp_name
     step_id = pred_dict['step_id']
 
-    new_pred_dict = {}
-    if 'mask' in pred_dict:
-        mask = pred_dict['mask']
-        new_pred_dict['mask'] = {'data': pack(mask), 'shape': mask.shape}
-    if 'kp2d' in pred_dict:
-        kp2d = pred_dict['kp2d']
-        new_pred_dict['kp2d'] = {'data': pack(pred_dict['kp2d']), 'shape': kp2d.shape}
-    if 'vertices' in pred_dict:
-        vertices = pred_dict['vertices']
-        new_pred_dict['vertices'] = {'data': pack(pred_dict['vertices']), 'shape': vertices.shape}
-    if 'faces' in pred_dict:
-        faces = pred_dict['faces']
-        new_pred_dict['faces'] = {'data': pack(pred_dict['faces']), 'shape': faces.shape}
+
+    # if 'mask' in pred_dict:
+    #     mask = pred_dict['mask']
+    #     new_pred_dict['mask'] = {'data': pack(mask), 'shape': mask.shape}
+    # if 'kp2d' in pred_dict:
+    #     kp2d = pred_dict['kp2d']
+    #     new_pred_dict['kp2d'] = {'data': pack(pred_dict['kp2d']), 'shape': kp2d.shape}
+    # if 'vertices' in pred_dict:
+    #     vertices = pred_dict['vertices']
+    #     new_pred_dict['vertices'] = {'data': pack(pred_dict['vertices']), 'shape': vertices.shape}
+    # if 'faces' in pred_dict:
+    #     faces = pred_dict['faces']
+    #     new_pred_dict['faces'] = {'data': pack(pred_dict['faces']), 'shape': faces.shape}
+    visual_data_dict = {}
+    if 'visual_data' in pred_dict:
+        for k, v in pred_dict['visual_data'].items():
+            visual_data_dict[k] = {'data': pack(v), 'shape': v.shape}
 
     # learning parameters
-    para_dict = {}
-    if 'para' in pred_dict:
-        for k, v in pred_dict['para'].items():
-            para_dict[k] = {'data': pack(v), 'shape': v.shape}
+    save_data_dict = {}
+    if 'save_para' in pred_dict:
+        for k, v in pred_dict['save_data'].items():
+            save_data_dict[k] = {'data': pack(v), 'shape': v.shape}
 
     # send
-    ret = client.call('update', exp_name, step_id, new_pred_dict, para_dict)
+    ret = client.call('update', exp_name, step_id, visual_data_dict, save_data_dict)
     if ret != 0:
         print('register server %d failed, ret %d' % (client_index, ret))
 

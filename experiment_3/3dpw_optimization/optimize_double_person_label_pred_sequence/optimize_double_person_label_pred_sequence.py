@@ -10,14 +10,19 @@ sys.path.append(abspath + "/../../../")
 
 from common.loss import coco_l2_loss, l2_loss, mask_loss, part_mask_loss
 from common.loss import smpl_collision_loss, touch_loss, pose_prior_loss
-from common.loss import pose_consistency_loss, shape_consistency_loss, kp3d_consistency_loss, transl_consistency_loss
+from common.loss import pose_consistency_loss, shape_consistency_loss
+from common.loss import kp3d_consistency_loss, transl_consistency_loss
+from common.loss import texture_render_loss, texture_temporal_consistency_loss
 
 from preprocess import init_opt, load_check_point
 from post_process import init_submit_thread, post_process, save_data, force_exit_thread
 
+from common.visualization import imshow_cv2_not_uint8
+
 
 def dataset(opt):
     label = opt.label
+
 
     kp2d_gt = torch.tensor(label['kp2d'], dtype=torch.float32).to(opt.device)
     kp2d_mask = torch.tensor(label['kp2d_mask'], dtype=torch.float32).to(opt.device)
@@ -27,6 +32,7 @@ def dataset(opt):
                              dtype=torch.float32).to(opt.device)
 
     # mask
+    img_gt = torch.tensor(label['img'] / 255.0, dtype=torch.float32).to(opt.device)
     mask_gt = torch.tensor(label['mask'], dtype=torch.float32).to(opt.device)
     # instance_a_gt = torch.tensor(label['instance_a'], dtype=torch.float32).to(opt.device)[None, :, :]
     # instance_b_gt = torch.tensor(label['instance_b'], dtype=torch.float32).to(opt.device)[None, :, :]
@@ -72,6 +78,7 @@ def dataset(opt):
         'kp2d_mask': kp2d_mask,
         # 'pose_reg': pose_reg,
         'shape_reg': shape_reg,
+        'img': img_gt,
         'mask': mask_gt,
         # 'instance_a': instance_a_gt,
         # 'instance_b': instance_b_gt,
@@ -84,10 +91,14 @@ def dataset(opt):
 
 def init_para(opt):
     label = opt.label
+
     faces = label['smplx_faces']['faces'].astype(dtype=np.int32)
     vertices = label['smplx_faces']['vertices'].astype(dtype=np.int32)
     faces_two_person_batch = np.concatenate((faces, faces+len(vertices)), axis=0)[None, ...].\
                                             repeat(opt.num_img, axis=0).astype(dtype=np.int32)
+
+    textures = np.zeros((opt.num_img, faces.shape[0] * 2, opt.texture_size,
+                         opt.texture_size, opt.texture_size, 3), dtype=np.float32)
 
     pose_0 = label['mean_pose'][0][None, None, None, ...].repeat(opt.num_img, axis=0). \
                                                       repeat(2, axis=1).astype(dtype=np.float32)
@@ -110,6 +121,7 @@ def init_para(opt):
 
 
     update_para = {
+        'textures': textures,
         'pose_0': pose_0,
         'pose_1_9': pose_1_9,
         'pose_12_21': pose_12_21,
@@ -150,7 +162,9 @@ def init_para(opt):
     return update_para, other_para
 
 
-def loss_f(opt, mask, kp2d, kp3d, global_pose, transl, body_pose, shape, vertices_batch, faces):
+def loss_f(opt, mask, kp2d, kp3d, global_pose,
+           transl, body_pose, shape, vertices_batch, faces,
+           img, depth, textures):
     loss_mask, \
     loss_kp2d, \
     loss_pose_reg, \
@@ -162,8 +176,17 @@ def loss_f(opt, mask, kp2d, kp3d, global_pose, transl, body_pose, shape, vertice
     loss_body_pose_consistency, \
     loss_shape_consistency, \
     loss_kp3d_consistency, \
-    loss_pose_prior = torch.zeros(12).to(opt.device)
+    loss_pose_prior, \
+    loss_texture_render, \
+    loss_texture_temporal_consistency = torch.zeros(14).to(opt.device)
 
+    # texture
+    if opt.texture_render_weight > 0:
+        loss_texture_render = texture_render_loss(img, opt.dataset['img'], depth < 100)
+
+    if opt.texture_temporal_consistency_weight > 0:
+        loss_texture_temporal_consistency = \
+            texture_temporal_consistency_loss(textures)
 
     # mask
     if opt.mask_weight > 0:
@@ -213,18 +236,20 @@ def loss_f(opt, mask, kp2d, kp3d, global_pose, transl, body_pose, shape, vertice
         loss_pose_prior = pose_prior_loss(opt, body_pose.view(-1, 21, 3))
 
 
-    loss_mask = loss_mask * opt.mask_weight
-    loss_kp2d = loss_kp2d * opt.kp2d_weight
-    loss_pose_reg = loss_pose_reg * opt.pose_reg_weight
-    loss_shape_reg = loss_shape_reg * opt.shape_reg_weight
-    loss_collision = loss_collision * opt.collision_weight
-    loss_touch = loss_touch * opt.touch_weight
-    loss_pose_prior = loss_pose_prior * opt.pose_prior_weight
-    loss_global_pose_consistency = loss_global_pose_consistency * opt.global_pose_consistency_weight
-    loss_body_pose_consistency = loss_body_pose_consistency * opt.body_pose_consistency_weight
-    loss_transl_consistency = loss_transl_consistency * opt.transl_consistency_weight
-    loss_shape_consistency = loss_shape_consistency * opt.shape_consistency_weight
-    loss_kp3d_consistency = loss_kp3d_consistency * opt.kp3d_consistency_weight
+    loss_mask *= opt.mask_weight
+    loss_kp2d *= opt.kp2d_weight
+    loss_pose_reg *= opt.pose_reg_weight
+    loss_shape_reg *= opt.shape_reg_weight
+    loss_collision *= opt.collision_weight
+    loss_touch *= opt.touch_weight
+    loss_pose_prior *= opt.pose_prior_weight
+    loss_global_pose_consistency *= opt.global_pose_consistency_weight
+    loss_body_pose_consistency *= opt.body_pose_consistency_weight
+    loss_transl_consistency *= opt.transl_consistency_weight
+    loss_shape_consistency *= opt.shape_consistency_weight
+    loss_kp3d_consistency *= opt.kp3d_consistency_weight
+    loss_texture_render *= opt.texture_render_weight
+    loss_texture_temporal_consistency *= opt.texture_temporal_consistency_weight
 
 
     loss =  loss_mask + \
@@ -238,7 +263,9 @@ def loss_f(opt, mask, kp2d, kp3d, global_pose, transl, body_pose, shape, vertice
             loss_body_pose_consistency + \
             loss_transl_consistency + \
             loss_shape_consistency + \
-            loss_kp3d_consistency
+            loss_kp3d_consistency + \
+            loss_texture_render + \
+            loss_texture_temporal_consistency
 
 
     loss_dict = {
@@ -255,6 +282,8 @@ def loss_f(opt, mask, kp2d, kp3d, global_pose, transl, body_pose, shape, vertice
         "loss_transl_consistency": loss_transl_consistency.detach().cpu().numpy(),
         "loss_shape_consistency": loss_shape_consistency.detach().cpu().numpy(),
         "loss_kp3d_consistency": loss_kp3d_consistency.detach().cpu().numpy(),
+        "loss_texture_render": loss_texture_render.detach().cpu().numpy(),
+        "loss_texture_temporal_consistency": loss_texture_temporal_consistency.detach().cpu().numpy(),
         "loss": loss.detach().cpu().numpy()
     }
 
@@ -274,6 +303,8 @@ def optimize(opt):
     faces_two_person_batch = other_para['faces_two_person_batch']
 
     # learning parameters
+    textures = opt.update_para['textures']
+
     pose_iter_0 = opt.update_para['pose_0']
     pose_iter_1_9 = opt.update_para['pose_1_9']
     pose_iter_12_21 = opt.update_para['pose_12_21']
@@ -289,7 +320,8 @@ def optimize(opt):
     reye_pose = opt.update_para['reye_pose']
     expression = opt.update_para['expression']
 
-    optimizer = torch.optim.Adam([pose_iter_0,
+    optimizer = torch.optim.Adam([textures,
+                                  pose_iter_0,
                                   pose_iter_1_9,
                                   pose_iter_12_21,
                                   shape_iter,
@@ -350,12 +382,20 @@ def optimize(opt):
             mask = opt.neural_render.render_mask(vertices_two_person_batch,
                                                  faces_two_person_batch)
 
+        img = None
+        depth = None
+        if opt.texture_render_weight > 0 or \
+           opt.texture_temporal_consistency_weight > 0:
+            img, depth = opt.neural_render.render_obj(vertices_two_person_batch,
+                                                      faces_two_person_batch,
+                                                      textures=textures)
+            # imshow_cv2_not_uint8('img', img[0].detach().cpu().numpy())
+            # imshow_cv2_not_uint8('depth', depth[0].detach().cpu().numpy())
 
         ## loss
         loss, loss_dict = loss_f(opt, mask, kp2d_batch, kp3d_batch, global_orient,
-                                 transl_iter, body_pose, shape_iter, vertices_batch, faces)
-
-
+                                 transl_iter, body_pose, shape_iter, vertices_batch,
+                                 faces, img, depth, textures)
 
 
         # update grad
@@ -369,7 +409,8 @@ def optimize(opt):
         if it_id % opt.submit_other_iter == 0 or \
            it_id % opt.submit_scalar_iter == 0:
 
-            pred_dict = {
+            pred_dict = {}
+            pred_dict['visual_data'] = {
                 # "part_mask_pre": mask_pre[1:],
                 "kp2d": kp2d_batch[:, :, label["joint_smplx_2_coco"]].detach().cpu().numpy(),
                 "vertices": vertices_two_person_batch.detach().cpu().numpy(),
@@ -377,12 +418,17 @@ def optimize(opt):
             }
 
             if opt.mask_weight != 0:
-                pred_dict["mask"] = mask.detach().cpu().numpy()
+                pred_dict['visual_data']["mask"] = mask.detach().cpu().numpy()
+
+            if opt.texture_render_weight > 0 or \
+               opt.texture_temporal_consistency_weight > 0:
+                pred_dict['visual_data']["img"] = img.detach().cpu().numpy()
+                pred_dict['visual_data']["depth"] = depth.detach().cpu().numpy()
 
             # save parameters
-            pred_dict['para'] = {}
+            pred_dict['save_data'] = {}
             for k, v in opt.update_para.items():
-                pred_dict['para'][k] = v.detach().cpu().numpy()
+                pred_dict['save_data'][k] = v.detach().cpu().numpy()
 
             save_data(opt, it_id, loss_dict, pred_dict)
 

@@ -227,7 +227,9 @@ def init_opt():
                                        opt.label['pyrender_camera_pose'],
                                        width=width, height=height)
 
-    if opt.mask_weight > 0:
+    if opt.mask_weight > 0 or \
+       opt.texture_render_weight > 0 or \
+       opt.texture_temporal_consistency_weight:
         K = torch.tensor(opt.label['intrinsic'][None, :, :], dtype=torch.float32).to(opt.device)
         R = torch.tensor(np.eye(3)[None, :, :], dtype=torch.float32).to(opt.device)
         t = torch.tensor(np.zeros((1, 3))[None, :, :], dtype=torch.float32).to(opt.device)
@@ -282,6 +284,11 @@ def preprocess_opt():
         opt.exp_name += '_bpc_%g' % opt.body_pose_consistency_weight
     if opt.transl_consistency_weight > 0 and opt.num_img > 1:
         opt.exp_name += '_trc_%g' % opt.transl_consistency_weight
+    if opt.texture_render_weight > 0 and opt.num_img > 1:
+        opt.exp_name += '_txl_%g' % opt.texture_render_weight
+    if opt.texture_temporal_consistency_weight > 0 and opt.num_img > 1:
+        opt.exp_name += '_txt_%g' % opt.texture_temporal_consistency_weight
+
 
     opt.exp_name += '_sca_%g' % opt.image_scale
     opt.exp_name += '_cnf_%g' % opt.kp2d_conf
