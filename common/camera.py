@@ -51,6 +51,8 @@ class CameraPerspectiveTorch(nn.Module):
             intrinsic(narray/tensor 3x3)
             extrinsic(narray/tensor 4x4)
         """
+        self.device = device
+        self.data_type = data_type
         self.intrinsic = torch.tensor(intrinsic, dtype=data_type).to(device)
 
         if extrinsic is not None:
@@ -64,6 +66,7 @@ class CameraPerspectiveTorch(nn.Module):
             pts(narray Bx3x3)
             extrinsic(narray Bx4x4)
         """
+
         homogeneous_vertices = torch.cat((pts, torch.ones((pts.shape[0], pts.shape[1], 1)).to(pts.device)), axis=2)
         world_2_cam = extrinsic if extrinsic is not None else self.extrinsic
         vertices_camera = torch.einsum("ij, bnj->bni", world_2_cam, homogeneous_vertices)[:, :, :3]
@@ -71,11 +74,14 @@ class CameraPerspectiveTorch(nn.Module):
         return vertices_camera
 
 
-    def perspective(self, pts, extrinsic=None):
+    def perspective(self, pts, intrinsic=None, extrinsic=None):
         """
             pts(tensor BX3x3)
             extrinsic(tensor Bx4x4)
         """
+        self.intrinsic = intrinsic if intrinsic is not None else self.intrinsic
+
+
         vertices_camera = self.world_2_camera(pts, extrinsic=extrinsic)
         vertices_normal = vertices_camera / vertices_camera[:, :, 2][:, :, None]
         kp2d_projection = torch.einsum("ij, bnj->bni", self.intrinsic, vertices_normal)[:, :, :2]
@@ -90,6 +96,8 @@ class CameraPerspectiveTorchMultiImage(nn.Module):
             intrinsic(narray/tensor 3x3 or nx3x3)
             extrinsic(narray/tensor nx4x4)
         """
+        self.device = device
+        self.data_type = data_type
         self.intrinsic = torch.tensor(intrinsic, dtype=data_type).to(device)
 
         if extrinsic is not None:
@@ -114,11 +122,13 @@ class CameraPerspectiveTorchMultiImage(nn.Module):
         return vertices_camera
 
 
-    def perspective(self, pts, extrinsic=None):
+    def perspective(self, pts, intrinsic=None, extrinsic=None):
         """
             pts(tensor num_imgxBxnx3)
             extrinsic(tensor num_imgx4x4)
         """
+        self.intrinsic = intrinsic if intrinsic is not None else self.intrinsic
+
         vertices_camera = self.world_2_camera(pts, extrinsic=extrinsic)
         vertices_normal = vertices_camera / vertices_camera[:, :, :, 2][:, :, :, None]
 

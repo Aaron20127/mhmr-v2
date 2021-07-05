@@ -63,7 +63,7 @@ class PerspectivePyrender(object):
                  camera_pose,
                  width,
                  height,
-                 light_intensity=40):
+                 light_intensity=4):
         self.scene = pyrender.Scene()
 
         # add camera
@@ -71,11 +71,15 @@ class PerspectivePyrender(object):
                 fx=intrinsic[0][0], fy=intrinsic[1][1],
                 cx=intrinsic[0][2], cy=intrinsic[1][2])
 
-        self.scene.add(camera, pose=camera_pose)
+        self.camera_pose = camera_pose
+        self.camera_scene_node = \
+            self.scene.add(camera, pose=camera_pose)
 
         # add light
-        light = pyrender.PointLight(color=[1.0, 1.0, 1.0],
-                                    intensity=light_intensity)
+        # light = pyrender.PointLight(color=[1.0, 1.0, 1.0],
+        #                             intensity=light_intensity)
+        light = pyrender.DirectionalLight(color=[1.0, 1.0, 1.0],
+                                          intensity=light_intensity)
 
         self.scene.add(light, pose=camera_pose)
 
@@ -84,6 +88,16 @@ class PerspectivePyrender(object):
                                             viewport_height = height,
                                             point_size = 1.0)
 
+
+    def update_intrinsic(self, intrinsic):
+        # add camera
+        camera = pyrender.camera.IntrinsicsCamera(
+            fx=intrinsic[0][0], fy=intrinsic[1][1],
+            cx=intrinsic[0][2], cy=intrinsic[1][2])
+
+        self.scene.remove_node(self.camera_scene_node)
+        self.camera_scene_node = \
+            self.scene.add(camera, pose=self.camera_pose)
 
 
     def render_mesh(self, mesh, show_viewer=False):
